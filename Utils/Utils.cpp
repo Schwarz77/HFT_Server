@@ -59,7 +59,7 @@ void write_error(const std::string& text, const error_code& ec)
     error = boost::str(boost::format("%1%: code=%2% %3%\n") % text % ec.value() % (ec.what()));
 #endif
 
-    std::cerr << error;
+    std::cerr << std::endl << error;
 }
 
 

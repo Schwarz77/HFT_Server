@@ -29,7 +29,7 @@ Session::~Session()
 
 void Session::Start()
 {
-    m_self = shared_from_this(); // Holding a shared_ptr (self)
+    //m_self = shared_from_this(); // Holding a shared_ptr (self)
 
     async_read_header();
 }
@@ -54,7 +54,7 @@ void Session::async_read_header()
                         ec == asio::error::eof)
                     {
                         if (m_server.IsShowLogMsg())
-                            std::cout << "Client disconnected\n";
+                            std::cout << "\nClient disconnected\n";
                     }
                     else if (ec == asio::error::operation_aborted)
                     {
@@ -75,21 +75,21 @@ void Session::async_read_header()
 
                 if (net_to_host_u16(hdr.signature) != SIGNAL_HEADER_SIGNATURE)
                 {
-                    std::cerr << "Session: bad signature, closing\n";
+                    std::cerr << "\nSession: bad signature, closing\n";
                     close();
                     return;
                 }
 
                 if (hdr.version != 1)
                 {
-                    std::cerr << "Session: bad version, closing\n";
+                    std::cerr << "\nSession: bad version, closing\n";
                     close();
                     return;
                 }
 
                 if (hdr.msg_num != 0)
                 {
-                    std::cerr << "Session: bad msg_num, closing\n";
+                    std::cerr << "\nSession: bad msg_num, closing\n";
                     close();
                     return;
                 }
@@ -99,7 +99,7 @@ void Session::async_read_header()
 
                 if (len > 10 * 1024 * 1024)
                 {
-                    std::cerr << "Session: payload too large (" << len << "), closing\n";
+                    std::cerr << "\nSession: payload too large (" << len << "), closing\n";
                     close();
                     return;
                 }
@@ -144,11 +144,11 @@ void Session::async_read_body(std::size_t len, uint8_t data_type)
                         ec == asio::error::eof)
                     {
                         if (m_server.IsShowLogMsg())
-                            std::cout << "Client disconnected\n";
+                            std::cout << "\nClient disconnected\n";
                     }
                     else if (ec == asio::error::operation_aborted)
                     {
-                        //std::cout << "Read body aborted (server disconnects clients in Server::SetSignals)\n";
+                        //std::cout << "\nRead body aborted (server disconnects clients in Server::SetSignals)\n";
                     }
                     else
                     {
@@ -164,8 +164,10 @@ void Session::async_read_body(std::size_t len, uint8_t data_type)
                 }
                 else
                 {
-                    std::cerr << "Session: unexpected dataType from client: " << int(data_type) << "\n";
+                    std::cerr << "\nSession: unexpected dataType from client: " << int(data_type) << "\n";
                 }
+
+                async_read_header(); // it need for work without m_self
 
             }));
 }
@@ -174,7 +176,7 @@ void Session::handle_subscribe(const std::vector<uint8_t>& payload)
 {
     if (payload.empty())
     {
-        std::cerr << "Session: subscribe payload empty\n";
+        std::cerr << "\nSession: subscribe payload empty\n";
         close();
         return;
     }
@@ -182,7 +184,7 @@ void Session::handle_subscribe(const std::vector<uint8_t>& payload)
     m_req_type = payload[0];
 
     if (m_server.IsShowLogMsg())
-        std::cout << "Session: client subscribed to type=" << int(m_req_type) << "\n";
+        std::cout << "\nSession: client subscribed to type=" << int(m_req_type) << "\n";
 
     m_server.RegisterSession(shared_from_this());
 
@@ -293,11 +295,11 @@ void Session::do_write()
                         ec == asio::error::eof)
                     {
                         if (m_server.IsShowLogMsg())
-                            std::cout << "Client disconnected\n";
+                            std::cout << "\nClient disconnected\n";
                     }
                     else if(ec == asio::error::operation_aborted)
                     {
-                        //std::cout << "Write aborted (server disconnects clients in Server::SetSignals)\n";
+                        //std::cout << "\nWrite aborted (server disconnects clients in Server::SetSignals)\n";
                     }
                     else
                     {
@@ -343,7 +345,7 @@ void Session::close()
         {
             m_que_write.clear();
 
-            m_self.reset();
+            //m_self.reset();
         });
 
     //std::cout << "\nSession closed\n";
@@ -365,21 +367,17 @@ void Session::ForceClose()
 
 void Session::PushEvent(const WhaleEvent& event)
 {
-    static int cnt = 0; 
-    //if (!m_hot_buffer.force_push(event))
-    //{
-    //    cnt++;
-
-    //    if(cnt > 10)
-    //        std::cout << std::endl << "DROP: " << cnt << std::endl;
-    //}
+    //static int cnt = 0; 
 
     if (!m_event_buffer.try_push(event))
     {
-        cnt++;
+        //cnt++;
 
-        if (cnt > 10)
-            std::cout << std::endl << "Session::PushEvent - DROP: " << cnt << std::endl;
+        //if (cnt > 10)
+        //{
+        //    cnt = 0;
+        //    std::cout << std::endl << "Session::PushEvent - DROP: " << cnt << std::endl;
+        //}
     }
 }
 
@@ -449,16 +447,16 @@ void Session::event_reader() {
         }
     }
 }
-
-inline uint32_t hash_market_symbol(const char* str)
-{
-    uint32_t hash = 0x811c9dc5;
-    while (*str) {
-        hash ^= (uint8_t)*str++;
-        hash *= 0x01000193;
-    }
-    return hash;
-}
+//
+//inline uint32_t hash_market_symbol(const char* str)
+//{
+//    uint32_t hash = 0x811c9dc5;
+//    while (*str) {
+//        hash ^= (uint8_t)*str++;
+//        hash *= 0x01000193;
+//    }
+//    return hash;
+//}
 
 
 //bool Session::IsWantEvent(const WhaleEvent& event)

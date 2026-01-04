@@ -97,7 +97,7 @@ private:
 
     time_point m_time_last_send;
 
-    std::shared_ptr<Session> m_self;          // keep the self-pointer while the session is active
+    //std::shared_ptr<Session> m_self;          // keep the self-pointer while the session is active
     std::atomic<bool> m_closing{ false };
 
     //

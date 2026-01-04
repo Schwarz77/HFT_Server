@@ -74,7 +74,7 @@ int main()
     }
     catch (std::exception& ex)
     {
-        std::cerr << ex.what() << "\n";
+        std::cerr << "\n" << ex.what() << "\n";
     }
 
     return 0;

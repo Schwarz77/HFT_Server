@@ -21,7 +21,7 @@ void set_affinity(std::thread& t, int logical_core_id)
     DWORD_PTR mask = (1ULL << logical_core_id);
     if (SetThreadAffinityMask(handle, mask) == 0) 
     {
-        std::cerr << "Error setting affinity\n";
+        std::cerr << "\nError setting affinity\n";
     }
 }
 
@@ -65,7 +65,7 @@ void Server::do_accept()
             if (!ec) 
             {
                 if (m_show_log_msg)
-                    std::cout << "Accepted connection\n";
+                    std::cout << "\nAccepted connection\n";
 
                 auto s = std::make_shared<Session>(std::move(socket), *this);
                 s->Start();
@@ -761,7 +761,7 @@ void Server::binance_stream() {
 
             if (cnt - cnt2 > 100)
             {
-                std::cout << "cnt: " << cnt.load() << std::endl;
+                std::cout << "\ncnt: " << cnt.load() << std::endl;
                 //printf("Cnt: %d\n", cnt.load());
                 cnt2.store(cnt.load(), std::memory_order_relaxed);
             }
@@ -769,7 +769,7 @@ void Server::binance_stream() {
 
         }
         //else if (msg->type == ix::WebSocketMessageType::Error) {
-        //    std::cerr << "Error: " << msg->errorInfo.reason << std::endl;
+        //    std::cerr << std::endl << "Error: " << msg->errorInfo.reason << std::endl;
         //}
         });
 
