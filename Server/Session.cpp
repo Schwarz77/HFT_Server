@@ -104,6 +104,17 @@ void Session::async_read_header()
                     return;
                 }
 
+                ///
+                // tmp emulate ETH client
+                static int cnt_gen = 0;
+                if (cnt_gen++ % 4 == 1)
+                {
+                    m_whale_treshold = 125000;
+                    m_ind_symb = 1;//ETH
+                }
+                //
+                ///
+
                 async_read_body(len, data_type);
 
             }));
@@ -335,7 +346,7 @@ void Session::close()
             m_self.reset();
         });
 
-    //std::cout << "Session closed\n";
+    //std::cout << "\nSession closed\n";
 }
 
 bool Session::Expired() const

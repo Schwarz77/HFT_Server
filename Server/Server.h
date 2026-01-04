@@ -89,8 +89,6 @@ private:
     void parse_single_event(simdjson::dom::element item);
     void process_market_msg(const ix::WebSocketMessagePtr& msg);
 
-    //void sync_snapshot();
-
 
 protected:
 
@@ -98,7 +96,8 @@ protected:
     boost::asio::ip::tcp::acceptor m_acceptor;
 
     std::mutex m_mtx_subscribers;
-    std::list<std::weak_ptr<Session>> m_subscribers;
+    //std::list<std::weak_ptr<Session>> m_subscribers;
+    std::list<std::shared_ptr<Session>> m_subscribers;
 
     //std::mutex m_mtx_state;
     //std::unordered_map<uint32_t, Signal> m_state;
@@ -125,8 +124,7 @@ protected:
     std::atomic<bool> m_data_emulation{ true };
     std::atomic<bool> m_show_log_msg{ true };
 
-    //std::atomic<bool> need_update_clients{ false };
-    //std::atomic<std::shared_ptr<SessionSnapshot>> m_current_snapshot{ std::make_shared<SessionSnapshot>() };
+    std::atomic<bool> m_need_update_clients{ false };
 
 };
 

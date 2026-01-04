@@ -145,7 +145,7 @@ void Server::Stop()
 
     // just in case - for guaranteed absence of leaks
     clear_sessions(); 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 }
 
@@ -189,31 +189,39 @@ void Server::Stop()
 
 void Server::RegisterSession(std::shared_ptr<Session> s) 
 {
-    //{
+    {
         std::lock_guard<std::mutex> lk(m_mtx_subscribers);
 
         m_subscribers.push_back(s);
-    //}
+    }
 
-    //sync_snapshot();
+    m_need_update_clients.store(true, std::memory_order_release);
 
 }
 
 void Server::UnregisterExpired() 
 {
-    //{
+    bool is_changed = false;
+
+    {
         std::lock_guard<std::mutex> lk(m_mtx_subscribers);
 
         m_subscribers.erase(std::remove_if(m_subscribers.begin(), m_subscribers.end(),
-            [](const std::weak_ptr<Session>& w)
+            [&is_changed](const std::shared_ptr<Session>& s)
             {
-                return w.expired();
+                if (s->Expired()) {
+                    is_changed = true;
+                    return true;
+                }
+                return false;
             }),
             m_subscribers.end());
-    //}
+    }
 
-    //sync_snapshot();
-
+    if (is_changed)
+    {
+        m_need_update_clients.store(true, std::memory_order_release);
+    }
 }
 
 //bool Server::PushSignal(const Signal& s) 
@@ -278,46 +286,48 @@ void Server::session_dispatcher()
 {
     while (m_running) 
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
+        UnregisterExpired();
 
-        //VecSignal batch;
+        ////VecSignal batch;
 
+        ////{
+        ////    std::unique_lock<std::mutex> lk(m_mtx_queue);
+
+        ////    m_cv_queue.wait(lk, [&] 
+        ////        {
+        ////            return !m_queue.empty() || !m_running; 
+        ////        });
+
+        ////    while (!m_queue.empty()) 
+        ////    {
+        ////        batch.push_back(m_queue.front()); 
+        ////        m_queue.pop_front(); 
+        ////    }
+        ////}
+
+        ////if (!batch.empty()) 
         //{
-        //    std::unique_lock<std::mutex> lk(m_mtx_queue);
+        //    // delivery: broadcast to subscribers
+        //    std::lock_guard<std::mutex> lk(m_mtx_subscribers);
 
-        //    m_cv_queue.wait(lk, [&] 
-        //        {
-        //            return !m_queue.empty() || !m_running; 
-        //        });
-
-        //    while (!m_queue.empty()) 
+        //    for (auto it = m_subscribers.begin(); it != m_subscribers.end();) 
         //    {
-        //        batch.push_back(m_queue.front()); 
-        //        m_queue.pop_front(); 
+        //        if ((*it)->Expired())
+        //        {
+        //            //sp->DeliverUpdates(batch);
+        //            ++it;
+        //        }
+        //        else
+        //        {
+        //            it = m_subscribers.erase(it);
+        //        }
         //    }
         //}
 
-        //if (!batch.empty()) 
-        //{
-            // delivery: broadcast to subscribers
-            std::lock_guard<std::mutex> lk(m_mtx_subscribers);
+        //m_need_update_clients.store(true, std::memory_order_release);
 
-            for (auto it = m_subscribers.begin(); it != m_subscribers.end();) 
-            {
-                if (auto sp = it->lock()) 
-                {
-                    //sp->DeliverUpdates(batch);
-                    ++it;
-                }
-                else
-                {
-                    it = m_subscribers.erase(it);
-                }
-            }
-        //}
-
-        //sync_snapshot();
     }
 }
 
@@ -471,6 +481,9 @@ void Server::producer_loop()
     int64_t cnt = 0;
     int64_t cnt_whale = 0;
 
+    int64_t cnt_whale_gen = 0;
+    int64_t cnt_tm_upd = 0;
+
     uint64_t batch_ts = std::chrono::duration_cast<std::chrono::milliseconds>( // сделать для ветки или больше
         std::chrono::system_clock::now().time_since_epoch()
     ).count();
@@ -488,9 +501,10 @@ void Server::producer_loop()
                 int ind = i% cnt_templ;
                 auto& t = templates[ind];
 
-                if (cnt % 50000000 == 0)
-                //if(cnt++ >= 50000000)
+                //if (cnt % 50000000 == 0)
+                if(cnt_tm_upd++ >= 50'000'000)
                 {
+                    cnt_tm_upd = 0;
                     batch_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()
                     ).count();
@@ -505,15 +519,25 @@ void Server::producer_loop()
                     ev.timestamp = batch_ts;
                     std::memcpy(ev.symbol, t.symbol, 16);
                     ev.price = t.price + (i % 10) * 0.1;
-                    ev.quantity = (cnt % 25000000 == 32) ? 100 : 1.0;
-                    ev.is_sell = (i % 2 == 0);
+                    //ev.quantity = (cnt % 25000000 == 32) ? 100 : 1.0;
+                    if (cnt_whale_gen++ >= 75'000'000)
+                    {
+                        cnt_whale_gen = 0;
+                        ev.quantity = 100;
+                    }
+                    else
+                    {
+                        ev.quantity = 1;
+                    }
+
+                    ev.is_sell = ((i & 1) == 0); //(i % 2 == 0);
                     //uint64_t s1 = *(reinterpret_cast<const uint64_t*>(t.symbol));
                     //ev.index_symbol = m_reg_coin.get_index_fast(s1);
                     ////ev.symbol_hash = CoinRegistry::fast_hash(t.symbol); //hash_symbol(t.symbol);
                     ev.index_symbol = ind;
 
                     cnt++;
-                    if (ev.quantity > 99 && ev.total_usd() >= 960000.5 /*&& ev.index_symbol == 0*/ /*hash_symbol(ev.symbol) == hash_symb*/ /*ev.index_symbol == 0*/ )
+                    if (ev.quantity > 99 && ev.total_usd() >= 960000.5)
                     {
                         cnt_whale++;
 
@@ -598,21 +622,21 @@ void Server::speed_monitor()
 
 void Server::clear_sessions()
 {
-    //{
+    {
         std::lock_guard<std::mutex> lk(m_mtx_subscribers);
 
-        for (auto& it : m_subscribers)
+        for (auto& sp : m_subscribers)
         {
-            if (auto sp = it.lock())
+            if (!sp->Expired())
             {
                 sp->ForceClose();
             }
         }
 
         m_subscribers.clear();
-   // }
+    }
 
-    //sync_snapshot();
+    m_need_update_clients.store(true, std::memory_order_release);
 
 }
 
@@ -848,36 +872,22 @@ void Server::event_dispatcher()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
 
-    std::vector<std::shared_ptr<Session>> local_clients;
     std::vector<Session*> local_clients_2;
+
+    //{
+    //    std::lock_guard<std::mutex> lock(m_mtx_subscribers);
+    //    local_clients_2.reserve(m_subscribers.size());
+    //    for (auto& sp : m_subscribers) {
+    //         {
+    //            local_clients_2.push_back(sp.get());
+    //        }
+    //    }
+    //}
+
 
     uint64_t iter_count = 0;
 
     uint64_t total_dropped = 0;
-
-    auto last_client_update = std::chrono::steady_clock::now();
-    auto client_list_update = std::chrono::milliseconds(100);
-
-    //1. Обновляем клиентов (вынесено в начало для чистоты)
-    //auto now = std::chrono::steady_clock::now();
-    //if (now - last_client_update > client_list_update)
-    //{
-    //    std::lock_guard<std::mutex> lock(m_mtx_subscribers);
-    //    local_clients.clear();
-    //    local_clients_2.clear();
-
-    //    int id_cli = 0;
-    //    for (auto& wp : m_subscribers) {
-    //        if (auto sp = wp.lock())
-    //        {
-    //            local_clients.push_back(sp);
-    //            local_clients_2.push_back(sp.get());
-    //            id_cli++;
-    //        }
-    //    }
-    //    //last_client_update = now;
-    //}
-
 
     int empty_cycles = 0;
 
@@ -903,24 +913,20 @@ void Server::event_dispatcher()
         }
 
         //// update local_clients 
-        //auto now = std::chrono::steady_clock::now();
-        //if (now - last_client_update > client_list_update) 
-        if(local_clients_2.empty())
+        if (m_need_update_clients.load(std::memory_order_acquire))
         {
             std::lock_guard<std::mutex> lock(m_mtx_subscribers);
-            local_clients.clear();
+            m_need_update_clients.store(false, std::memory_order_relaxed);
             local_clients_2.clear();
+            local_clients_2.reserve(m_subscribers.size());
 
             int id_cli = 0;
-            for (auto& wp : m_subscribers) {
-                if (auto sp = wp.lock())
+            for (auto& sp : m_subscribers) {
                 {
-                    local_clients.push_back(sp);
                     local_clients_2.push_back(sp.get());
                     id_cli++;
                 }
             }
-            //last_client_update = now;
         }
 
         //if (need_update_clients.load(std::memory_order_acquire)) {
@@ -983,35 +989,3 @@ void Server::event_dispatcher()
         }
     }
 }
-
-//void Server::client_update_timer() 
-//{
-//    auto client_list_update = std::chrono::milliseconds(100);
-//
-//    while (m_running) 
-//    {
-//        std::this_thread::sleep_for(client_list_update);
-//        need_update_clients.store(true, std::memory_order_release);
-//    }
-//}
-//
-//void Server::sync_snapshot() 
-//{
-//    auto new_snap = std::make_shared<SessionSnapshot>();
-//
-//    {
-//        std::lock_guard<std::mutex> lk(m_mtx_subscribers);
-//
-//        for (auto it = m_subscribers.begin(); it != m_subscribers.end(); ) {
-//            if (auto sp = it->lock()) {
-//                new_snap->ptrs.push_back(sp.get());
-//                new_snap->strong.push_back(std::move(sp));
-//                ++it;
-//            }
-//            else {
-//                it = m_subscribers.erase(it);
-//            }
-//        }
-//    }
-//    std::atomic_store(&m_current_snapshot, new_snap);
-//}
