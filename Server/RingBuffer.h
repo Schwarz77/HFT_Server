@@ -1,0 +1,117 @@
+#pragma once
+
+#include <atomic>
+#include <vector>
+#include <cstdint>
+
+
+template<typename T, uint64_t Capacity>
+class RingBuffer {
+    static_assert((Capacity& (Capacity - 1)) == 0, "Capacity must be a power of 2");
+
+public:
+    RingBuffer() : buffer(Capacity) {
+        head.store(0, std::memory_order_relaxed);
+        tail.store(0, std::memory_order_relaxed);
+    }
+
+    T read(uint64_t idx) const {
+        return buffer[idx & mask];
+    }
+
+    bool can_write(uint64_t count) const {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        uint64_t t = tail.load(std::memory_order_acquire);
+        return (h - t + count) <= Capacity;
+    }
+
+    void push_batch(const T* items, size_t count) {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        uint32_t write_pos = h & mask;
+
+        if (write_pos + count <= Capacity) {
+            std::memcpy(&buffer[write_pos], items, count * sizeof(T));
+        }
+        else {
+            size_t first_part = Capacity - write_pos;
+            std::memcpy(&buffer[write_pos], items, first_part * sizeof(T));
+            std::memcpy(&buffer[0], &items[first_part], (count - first_part) * sizeof(T));
+        }
+
+        head.store(h + count, std::memory_order_release);
+    }
+
+    void update_tail(uint64_t reader_idx) {
+        tail.store(reader_idx, std::memory_order_release);
+    }
+
+    uint64_t get_head() const { return head.load(std::memory_order_acquire); }
+
+private:
+    std::vector<T> buffer;
+    const uint64_t mask = Capacity - 1;
+    alignas(64) std::atomic<uint64_t> head;
+    alignas(64) std::atomic<uint64_t> tail;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+template<typename T, uint64_t Size>
+class SPSCRingBuffer {
+    static_assert((Size& (Size - 1)) == 0, "Power of 2");
+    const uint64_t mask = Size - 1;
+public:
+    bool try_push(const T& item) {
+        const uint64_t curr_head = head.load(std::memory_order_relaxed);
+        const uint64_t curr_tail = tail.load(std::memory_order_acquire);
+
+        if (curr_head - curr_tail >= Size)
+            return false;
+
+        buffer[curr_head & (Size - 1)] = item;
+        head.store(curr_head + 1, std::memory_order_release);
+        return true;
+    }
+
+    bool force_push(const T& item) {
+        const uint64_t h = head.load(std::memory_order_relaxed);
+        const uint64_t t = tail.load(std::memory_order_acquire);
+
+        if (h - t >= Size)
+            return false;
+
+        buffer[h & mask] = item;
+        head.store(h + 1, std::memory_order_release);
+        return true;
+    }
+
+    size_t pop_batch(T* out_array, size_t max_count) {
+        const uint64_t t = tail.load(std::memory_order_relaxed);
+        const uint64_t h = head.load(std::memory_order_acquire);
+
+        if (t == h)
+            return 0;
+
+        size_t available = h - t;
+        size_t to_read = std::min(available, max_count);
+
+        // TODO: memcpy, if T is POD structure
+        for (size_t i = 0; i < to_read; ++i) {
+            out_array[i] = buffer[(t + i) & mask];
+        }
+
+        tail.store(t + to_read, std::memory_order_release);
+        return to_read;
+    }
+
+    //void update_tail(uint64_t reader_idx) {
+    //    tail.store(reader_idx, std::memory_order_release);
+    //}
+
+    uint64_t get_head() const { return head.load(std::memory_order_acquire); }
+
+private:
+    std::array<T, Size> buffer;
+    alignas(64) std::atomic<uint64_t> head{ 0 };
+    alignas(64) std::atomic<uint64_t> tail{ 0 };
+};
