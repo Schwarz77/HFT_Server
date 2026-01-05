@@ -19,10 +19,20 @@ public:
         return buffer[idx & mask];
     }
 
+    //bool can_write(uint64_t count) const {
+    //    uint64_t h = head.load(std::memory_order_relaxed);
+    //    uint64_t t = tail.load(std::memory_order_acquire);
+    //    return (h - t + count) <= Capacity;
+    //}
+
     bool can_write(uint64_t count) const {
+        static constexpr uint64_t HIGH_WATER = Capacity * 9 / 10;
+
         uint64_t h = head.load(std::memory_order_relaxed);
         uint64_t t = tail.load(std::memory_order_acquire);
-        return (h - t + count) <= Capacity;
+        uint64_t used = h - t;
+
+        return (used + count) <= HIGH_WATER;
     }
 
     void push_batch(const T* items, size_t count) {
@@ -46,6 +56,10 @@ public:
     }
 
     uint64_t get_head() const { return head.load(std::memory_order_acquire); }
+
+    static constexpr uint64_t capacity() noexcept {
+        return Capacity;
+    }
 
 private:
     std::vector<T> buffer;
@@ -93,7 +107,8 @@ public:
             return 0;
 
         size_t available = h - t;
-        size_t to_read = std::min(available, max_count);
+        //size_t to_read = std::min(available, max_count);
+        size_t to_read = (available < max_count) ? available : max_count;
 
         // TODO: memcpy, if T is POD structure
         for (size_t i = 0; i < to_read; ++i) {
@@ -109,6 +124,10 @@ public:
     //}
 
     uint64_t get_head() const { return head.load(std::memory_order_acquire); }
+
+    static constexpr uint64_t capacity() noexcept {
+        return Size;
+    }
 
 private:
     std::array<T, Size> buffer;

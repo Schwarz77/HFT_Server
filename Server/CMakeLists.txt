@@ -7,7 +7,7 @@ add_definitions(-DSIMDJSON_USING_LIBRARY=1)
 
 
 add_library(ServerCore STATIC 
-    RingBuffer.h CoinRegistry.h
+    RingBuffer.h CoinRegistry.h Analytics.h
     Server.h Server.cpp 
     Session.h Session.cpp
 )

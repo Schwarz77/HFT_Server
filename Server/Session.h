@@ -49,19 +49,6 @@ public:
     void DeliverUpdates(WhaleEvent* events, size_t size);
     bool Expired() const;
     void ForceClose();
-
-    //inline uint32_t hash_market_symbol(const char* str)
-    //{
-    //    uint32_t hash = 0x811c9dc5;
-    //    while (*str) {
-    //        hash ^= (uint8_t)*str++;
-    //        hash *= 0x01000193;
-    //    }
-    //    return hash;
-    //}
-
-    //bool IsWantEvent(const WhaleEvent& event);
-
     void PushEvent(const WhaleEvent& event);
 
     inline double GetWhaleTreshold() { return m_whale_treshold; };

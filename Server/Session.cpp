@@ -388,7 +388,6 @@ void Session::event_reader() {
     int empty_cycles = 0;
     const size_t size_batch = 4096;
     WhaleEvent batch[size_batch];
-    const double WHALE_THRESHOLD = 960000.5;
 
     int w_cnt = 0;
 
@@ -399,23 +398,20 @@ void Session::event_reader() {
     uint64_t reader_idx = m_event_buffer.get_head();
 
     while (m_socket.is_open()) {
-    //while (!m_closing.load(std::memory_order_relaxed) /*m_socket.is_open()*/) {
         size_t total_processed_in_this_tick = 0;
         size_t read_count = 0;
 
-        //
-        uint64_t h = m_event_buffer.get_head(); // memory_order_acquire
+        ////
+        //uint64_t h = m_event_buffer.get_head(); // memory_order_acquire
 
-        //
-        if (h - reader_idx > SESSION_BUFFER_SIZE * 0.9) {
-            //reader_idx = h;
-            //m_hot_buffer.update_tail(reader_idx);
-            printf("\nSession::event_reader OVERLOADED! JUMPING TO HEAD\n");
-        }
-        //         
-        //
+        //if (h - reader_idx > m_event_buffer.capacity() * 0.9) {
+        //    //reader_idx = h;
+        //    //m_hot_buffer.update_tail(reader_idx);
+        //    printf("\nSession::event_reader OVERLOADED! JUMPING TO HEAD\n");
+        //}
+        ////         
 
-        // Читаем всё, что есть в буфере пачками
+
         while ((read_count = m_event_buffer.pop_batch(batch, size_batch)) > 0) {
             total_processed_in_this_tick += read_count;
 
@@ -447,26 +443,3 @@ void Session::event_reader() {
         }
     }
 }
-//
-//inline uint32_t hash_market_symbol(const char* str)
-//{
-//    uint32_t hash = 0x811c9dc5;
-//    while (*str) {
-//        hash ^= (uint8_t)*str++;
-//        hash *= 0x01000193;
-//    }
-//    return hash;
-//}
-
-
-//bool Session::IsWantEvent(const WhaleEvent& event)
-//{
-//    //static char tmp_sign[] = "BTCUSDT";
-//    //return !strcmp(event.symbol, tmp_sign);
-//
-//    static uint32_t hash_symb = hash_market_symbol("BTCUSDT");
-//
-//    return (hash_market_symbol(event.symbol) == hash_symb);
-//
-//    //return event.id_symbol == 1;
-//}

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <chrono>
 #include <Utils.h>
-
+#include "Analytics.h"
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
@@ -14,10 +14,29 @@ using time_point = std::chrono::steady_clock::time_point;
 using steady_clock = std::chrono::steady_clock;
 
 
+///////////////////////////////////////////////////////////////////////
+
+
+const CoinPair coin_data[] =
+{
+    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
+};
+
+const size_t COIN_CNT = _countof(coin_data);
+
+double whale_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
+
+CoinVWAP coin_VWAP[COIN_CNT];
+
+
+
+///////////////////////////////////////////////////////////////////////
+
+
 void set_affinity(std::thread& t, int logical_core_id) 
 {
     HANDLE handle = t.native_handle();
-    // Маска: 1 << id. Для 0 это 1, для 2 это 4.
+
     DWORD_PTR mask = (1ULL << logical_core_id);
     if (SetThreadAffinityMask(handle, mask) == 0) 
     {
@@ -30,6 +49,8 @@ Server::Server(asio::io_context& io, uint16_t port)
 {
     //Start();
 
+    register_coins();
+
     m_session_dispatcher = std::thread(&Server::session_dispatcher, this);
     //m_producer = std::thread(&Server::producer_loop, this);
     m_hot_dispatcher = std::thread(&Server::hot_dispatcher, this);
@@ -40,8 +61,8 @@ Server::Server(asio::io_context& io, uint16_t port)
     set_affinity(m_producer, 0);
     //set_affinity(m_session_dispatcher, 2);
     set_affinity(m_hot_dispatcher, 2);
-    set_affinity(m_monitor, 3);  // tail to 2 core
     set_affinity(m_event_dispatcher, 4);
+    set_affinity(m_monitor, 5);  // tail to 3 core
 
 }
 
@@ -333,150 +354,21 @@ void Server::session_dispatcher()
 
 ///////////////////////////////////
 //
-        // Предварительно создаем шаблоны для пар (ускоряем генерацию)
-struct Template {
-    char symbol[16];
-    double price;
-};
 
-
-const Template templates[] = {
-    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
-};
-
-//struct alignas(64) CoinAnalytics {
-//    // Дневной VWAP
-//    double day_pv = 0.0;
-//    double day_v = 0.0;
-//
-//    // Минутное окно (60 секундных бакетов)
-//    struct Bucket { double pv = 0.0; double v = 0.0; };
-//    Bucket buckets[60] = {};
-//    double rolling_pv = 0.0;
-//    double rolling_v = 0.0;
-//
-//    uint64_t last_sec = 0;
-//    uint8_t cursor = 0;
-//
-//    void apply_batch(double batch_pv, double batch_q, uint64_t ts_sec) {
-//        day_pv += batch_pv;
-//        day_v += batch_q;
-//
-//        if (ts_sec > last_sec) {
-//            uint64_t diff = std::min<uint64_t>(ts_sec - last_sec, 60);
-//
-//            for (uint64_t i = 0; i < diff; ++i) {
-//                cursor++;
-//                if (cursor >= 60) 
-//                    cursor = 0; // fast increment instead of %
-//
-//                // subtract old data that falls outside the one-minute window.
-//                rolling_pv -= buckets[cursor].pv;
-//                rolling_v -= buckets[cursor].v;
-//
-//                // reset the bucket since it's a new second.
-//                buckets[cursor] = { 0.0, 0.0 };
-//            }
-//            last_sec = ts_sec;
-//        }
-//
-//        // Add the accumulated amount for the pack to the current (cleared) bucket
-//        buckets[cursor].pv += batch_pv;
-//        buckets[cursor].v += batch_q;
-//        rolling_pv += batch_pv;
-//        rolling_v += batch_q;
-//    }
-//};
-
-struct CoinVWAP {
-    // 1d
-    double day_pv = 0.0;
-    double day_v = 0.0;
-
-    // 1m sliding
-    struct Bucket { double pv, v; };
-    Bucket buckets[60] = {};
-    double min_pv = 0.0;
-    double min_v = 0.0;
-
-    uint64_t last_sec = 0;
-    uint8_t  cursor = 0;
-};
-
-inline uint32_t hash_symbol(const char* str)
+void Server::register_coins()
 {
-    uint32_t hash = 0x811c9dc5;
-    while (*str) {
-        hash ^= (uint8_t)*str++;
-        hash *= 0x01000193;
+    for (int i = 0; i < COIN_CNT; i++)
+    {
+        m_reg_coin.register_coin(coin_data[i].symbol, i);
     }
-    return hash;
 }
-
-double whale_treshold[_countof(templates)] = {100000, 70000, 50000, 60000};
-
-//CoinAnalytics ar_coin_stat[_countof(templates)];
-
-CoinVWAP coin_VWAP[_countof(templates)];
-
-double b_day_pv[_countof(templates)] = { 0 };
-double b_day_v[_countof(templates)] = { 0 };
-
-inline void process_VWAP(CoinVWAP& c,
-    double price,
-    double qty,
-    uint64_t ts_sec)
-{
-    double pv = price * qty;
-
-    // === DAY ===
-    c.day_pv += pv;
-    c.day_v += qty;
-
-    // === 1 MIN SLIDING ===
-    if (ts_sec != c.last_sec) {
-        uint64_t diff = ts_sec - c.last_sec;
-        if (diff > 60) diff = 60;
-
-        for (uint64_t i = 0; i < diff; ++i) {
-            c.cursor = (c.cursor + 1 == 60) ? 0 : c.cursor + 1;
-            c.min_pv -= c.buckets[c.cursor].pv;
-            c.min_v -= c.buckets[c.cursor].v;
-            c.buckets[c.cursor] = { 0.0, 0.0 };
-        }
-        c.last_sec = ts_sec;
-    }
-
-    c.buckets[c.cursor].pv += pv;
-    c.buckets[c.cursor].v += qty;
-    c.min_pv += pv;
-    c.min_v += qty;
-}
-
-inline double vwap_1m(const CoinVWAP& c) {
-    return c.min_v > 0 ? c.min_pv / c.min_v : 0.0;
-}
-
-inline double vwap_1d(const CoinVWAP& c) {
-    return c.day_v > 0 ? c.day_pv / c.day_v : 0.0;
-}
-
-//
-//////////////////////////////////////
 
 void Server::producer_loop()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 0);
 
-    for (int i = 0; i < _countof(templates); i++)
-    {
-        m_reg_coin.register_coin(templates[i].symbol, i);
-    }
-
-    const size_t size_batch = 64; // optimal size for L1 cash 
+    const size_t size_batch = 64;
     std::vector<MarketEvent> batch(size_batch);
-
-    //std::mt19937_64 rng(std::random_device{}());
 
     int64_t cnt = 0;
     int64_t cnt_whale = 0;
@@ -484,24 +376,24 @@ void Server::producer_loop()
     int64_t cnt_whale_gen = 0;
     int64_t cnt_tm_upd = 0;
 
-    uint64_t batch_ts = std::chrono::duration_cast<std::chrono::milliseconds>( // сделать для ветки или больше
+    uint64_t batch_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()
     ).count();
 
     uint64_t m_dropped_producer = 0;
 
 
-    int cnt_templ = _countof(templates);
-
     while (m_running) {
 
         if (m_hot_buffer.can_write(size_batch))
         {
             for (int i = 0; i < size_batch; ++i) {
-                int ind = i% cnt_templ;
-                auto& t = templates[ind];
+                //int ind = i % COIN_CNT;
+                int ind = fast_range(COIN_CNT - 1);
 
-                //if (cnt % 50000000 == 0)
+                auto& t = coin_data[ind];
+
+                // time
                 if(cnt_tm_upd++ >= 50'000'000)
                 {
                     cnt_tm_upd = 0;
@@ -510,16 +402,16 @@ void Server::producer_loop()
                     ).count();
                 }
 
-                //if (cached_type) [[likely]]
+
                 {
                     MarketEvent& ev = batch[i];
 
-                    //int sz = sizeof(ev);
-
                     ev.timestamp = batch_ts;
+
                     std::memcpy(ev.symbol, t.symbol, 16);
-                    ev.price = t.price + (i % 10) * 0.1;
-                    //ev.quantity = (cnt % 25000000 == 32) ? 100 : 1.0;
+                    //ev.price = t.price + (i % 10) * 0.1;
+                    ev.price = t.price + fast_float_range(0, 0.7);
+
                     if (cnt_whale_gen++ >= 75'000'000)
                     {
                         cnt_whale_gen = 0;
@@ -531,34 +423,26 @@ void Server::producer_loop()
                     }
 
                     ev.is_sell = ((i & 1) == 0); //(i % 2 == 0);
-                    //uint64_t s1 = *(reinterpret_cast<const uint64_t*>(t.symbol));
-                    //ev.index_symbol = m_reg_coin.get_index_fast(s1);
-                    ////ev.symbol_hash = CoinRegistry::fast_hash(t.symbol); //hash_symbol(t.symbol);
                     ev.index_symbol = ind;
 
                     cnt++;
-                    if (ev.quantity > 99 && ev.total_usd() >= 960000.5)
+ /*                   if (ev.quantity > 99 && ev.total_usd() >= 960000.5)
                     {
                         cnt_whale++;
-
-                        //if (cnt_whale % 10 == 0)
-                        //    std::cout << std::endl << "W:" << cnt_whale << std::endl;
-                    }
+                    }*/
                 }
 
             }
 
-            //m_hot_buffer.push_batch(batch);
-            m_hot_buffer.push_batch(batch.data(), batch.size());
+             m_hot_buffer.push_batch(batch.data(), size_batch);
         }
         else
         {
             m_dropped_producer += size_batch;
         }
 
-        _mm_pause(); // tmp dbg
-        //for (int j = 0; j < 10; ++j)
-        //    std::this_thread::yield();
+        _mm_pause(); 
+
     }
 }
 
@@ -779,7 +663,8 @@ void Server::binance_stream() {
 }
 
 
-void Server::hot_dispatcher() {
+void Server::hot_dispatcher() 
+{
     SetThreadAffinityMask(GetCurrentThread(), 1 << 2);
 
     uint64_t reader_idx = m_hot_buffer.get_head();
@@ -791,18 +676,31 @@ void Server::hot_dispatcher() {
 
     uint64_t total_dropped = 0;
 
+    std::memset(coin_VWAP, 0, sizeof(CoinVWAP) * COIN_CNT);
+
+    double b_pv[COIN_CNT];
+    double b_v[COIN_CNT];
+    SecAgg  sec_aggs[COIN_CNT][MAX_SEC_IN_BATCH];
+    uint8_t sec_cnt[COIN_CNT];
+
+
+    std::vector<WhaleEvent> bach_to_client(1024);
+    uint64_t cnt_event_to_client = 0;
+
     while (m_running) {
         uint64_t h = m_hot_buffer.get_head();
 
-        //
-        if (h - reader_idx > BUFFER_SIZE * 0.9) {
-            // We are falling behind, it's drops
-            reader_idx = h;
-            m_hot_buffer.update_tail(reader_idx);
-            printf("\nhot_dispatcher OVERLOADED! JUMPING TO HEAD\n");
+        size_t avail_read = h - reader_idx;
 
-        }
-        //
+        ////
+        //if (avail_read > m_hot_buffer.capacity() * 0.9) {
+        //    // We are falling behind, it's drops
+        //    reader_idx = h;
+        //    m_hot_buffer.update_tail(reader_idx);
+        //    printf("\nhot_dispatcher OVERLOADED! JUMPING TO HEAD\n");
+
+        //}
+        ////
 
         if (h <= reader_idx) {
             _mm_pause();
@@ -810,36 +708,87 @@ void Server::hot_dispatcher() {
         }
 
         // Параметры пачки
-        size_t to_process = std::min<size_t>(h - reader_idx, 1024);
-      
+        //size_t to_process = std::min<size_t>(h - reader_idx, 1024);
+        size_t to_process = (avail_read < 1024) ? avail_read : 1024;
+    
+        std::memset(b_pv, 0, 8 * COIN_CNT);
+        std::memset(b_v, 0, 8 * COIN_CNT);
+        std::memset(sec_aggs, 0, sizeof(SecAgg) * COIN_CNT * MAX_SEC_IN_BATCH);
+        std::memset(sec_cnt, 0, sizeof(uint8_t) * COIN_CNT);
+
+        uint64_t first_sec = 0;
+        uint64_t last_sec = 0;
+        bool first = true;
+
         for (size_t i = 0; i < to_process; ++i) {
             const auto& ev = m_hot_buffer.read(reader_idx++);
 
-            if (ev.index_symbol < 0)
+            if (ev.index_symbol < 0  || ev.index_symbol >= COIN_CNT)
                 continue;
 
             double pv = ev.total_usd();
-            b_day_pv[ev.index_symbol] += pv;
-            b_day_v[ev.index_symbol] += ev.quantity;
+            b_pv[ev.index_symbol] += pv;
+            b_v[ev.index_symbol] += ev.quantity;
 
-            //process_VWAP(coin_VWAP[ev.index_symbol], ev.price, ev.quantity, ev.timestamp / 1000);
+            uint64_t sec = ev.timestamp / 1000;
 
-            if (pv >= whale_treshold[ev.index_symbol])
+            if(i == 0)
+                first_sec = sec;
+            last_sec = sec;
+
+            if (pv >= whale_treshold[ev.index_symbol] ) [[unlikely]]
             {
-                WhaleEvent we;
+                WhaleEvent& we = bach_to_client[cnt_event_to_client++];
                 we.index_symbol = ev.index_symbol;
                 we.total_usd = pv;
                 we.timestamp = ev.timestamp;
-                //we.vwap_1m = vwap_1m(coin_VWAP[ev.index_symbol]);
-                //we.vwap_1d = vwap_1d(coin_VWAP[ev.index_symbol]);
+                we.vwap_1m = vwap_1m(coin_VWAP[ev.index_symbol]);
+                we.vwap_1d = vwap_1d(coin_VWAP[ev.index_symbol]);
 
-                m_event_buffer.push_batch(&we, 1);
             }
 
+            // slow path accumulation
+            uint8_t& cnt = sec_cnt[ev.index_symbol];
+            if (cnt == 0 || sec_aggs[ev.index_symbol][cnt - 1].sec != sec) {
+                if (cnt < MAX_SEC_IN_BATCH) {
+                    sec_aggs[ev.index_symbol][cnt++] = { sec, 0.0, 0.0 };
+                }
+                else
+                {
+                    // overflow
+                    int ddd = 0;
+                 }
+            }
         }
 
-        //if(to_process > 0)
-        //    m_hot_buffer.update_tail(reader_idx);
+        if (first_sec == last_sec) [[likely]]
+        {
+            for (int s = 0; s < COIN_CNT; ++s)
+            {
+                if (b_v[s] > 0.0) {
+                    apply_batch(coin_VWAP[s], b_pv[s], b_v[s], first_sec);
+                }
+            }
+        }
+        else [[unlikely]]
+        {
+            for (int s = 0; s < COIN_CNT; ++s)
+            {
+                for (uint8_t i = 0; i < sec_cnt[s]; ++i) {
+                    apply_batch(
+                        coin_VWAP[s],
+                        sec_aggs[s][i].pv,
+                        sec_aggs[s][i].v,
+                        sec_aggs[s][i].sec
+                    );
+                }
+            }
+        }
+
+        //write events
+        m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
+        cnt_event_to_client = 0;
+
 
         if (to_process > 0) {
             m_hot_buffer.update_tail(reader_idx);
@@ -872,18 +821,7 @@ void Server::event_dispatcher()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
 
-    std::vector<Session*> local_clients_2;
-
-    //{
-    //    std::lock_guard<std::mutex> lock(m_mtx_subscribers);
-    //    local_clients_2.reserve(m_subscribers.size());
-    //    for (auto& sp : m_subscribers) {
-    //         {
-    //            local_clients_2.push_back(sp.get());
-    //        }
-    //    }
-    //}
-
+    std::vector<Session*> clients;
 
     uint64_t iter_count = 0;
 
@@ -896,16 +834,17 @@ void Server::event_dispatcher()
     while (m_running)
     {
         ////
-        // 1. Читаем голову ОДИН раз
-        uint64_t h = m_event_buffer.get_head(); // memory_order_acquire
+        uint64_t h = m_event_buffer.get_head();
 
-        //
-        if (h - reader_idx > COLD_BUFFER_SIZE * 0.9) {
-            reader_idx = h;
-            m_event_buffer.update_tail(reader_idx);
-            printf("\nevent_dispatcher OVERLOADED! JUMPING TO HEAD\n");
-        }
-        //
+        uint64_t avail_read = h - reader_idx;
+
+        ////
+        //if (avail_read > m_event_buffer.capacity() * 0.9) {
+        //    reader_idx = h;
+        //    m_event_buffer.update_tail(reader_idx);
+        //    printf("\nevent_dispatcher OVERLOADED! JUMPING TO HEAD\n");
+        //}
+        ////
 
         if (h <= reader_idx) {
             _mm_pause();
@@ -917,43 +856,23 @@ void Server::event_dispatcher()
         {
             std::lock_guard<std::mutex> lock(m_mtx_subscribers);
             m_need_update_clients.store(false, std::memory_order_relaxed);
-            local_clients_2.clear();
-            local_clients_2.reserve(m_subscribers.size());
+            clients.clear();
+            clients.reserve(m_subscribers.size());
 
-            int id_cli = 0;
             for (auto& sp : m_subscribers) {
                 {
-                    local_clients_2.push_back(sp.get());
-                    id_cli++;
+                    clients.push_back(sp.get());
                 }
             }
         }
 
-        //if (need_update_clients.load(std::memory_order_acquire)) {
-        //    need_update_clients.store(false, std::memory_order_relaxed);
-
-        //    std::lock_guard<std::mutex> lock(m_mtx_subscribers);
-        //    local_clients.clear();
-        //    local_clients_2.clear();
-
-        //    for (auto& wp : m_subscribers) {
-        //        if (auto sp = wp.lock()) {
-        //            local_clients.push_back(sp);
-        //            local_clients_2.push_back(sp.get());
-        //        }
-        //    }
-        //}
-
-        size_t to_process = std::min<size_t>(h - reader_idx, 1024);
-
-        //auto snap = std::atomic_load(&m_current_snapshot, );
+        size_t to_process = (avail_read < 1024) ? avail_read : 1024;
 
         for (size_t i = 0; i < to_process; ++i)
         {
             const auto& ev = m_event_buffer.read(reader_idx++);
 
-            for (auto& pSession : local_clients_2)
-            //for (Session* pSession : snap->ptrs)
+            for (auto& pSession : clients)
             {
                 if (ev.index_symbol == pSession->m_ind_symb && ev.total_usd >= pSession->GetWhaleTreshold())
                     pSession->PushEvent(ev);
@@ -961,7 +880,6 @@ void Server::event_dispatcher()
  
         }
 
-        // Без этого market_dispatcher упадет в 0 через секунду!
         if (reader_idx - last_tail_update >= 512/*1024*/) {
             m_event_buffer.update_tail(reader_idx);
             last_tail_update = reader_idx;

@@ -89,6 +89,8 @@ private:
     void parse_single_event(simdjson::dom::element item);
     void process_market_msg(const ix::WebSocketMessagePtr& msg);
 
+    void register_coins();
+
 
 protected:
 
