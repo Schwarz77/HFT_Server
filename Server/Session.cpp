@@ -199,7 +199,7 @@ void Session::handle_subscribe(const std::vector<uint8_t>& payload)
 }
 
 
-void Session::DeliverUpdates(WhaleEvent* events, size_t size)
+void Session::DeliverUpdates(std::vector<WhaleEvent>& events, size_t size)
 {
     auto self = shared_from_this();
     asio::post(m_strand, [this, self, events, size]()
@@ -215,12 +215,12 @@ void Session::DeliverUpdates(WhaleEvent* events, size_t size)
             for (int i=0; i<size; i++ )
             {
                 //Signal& e = events[i];
-                WhaleEvent& we = events[i];
+                const WhaleEvent& we = events[i];
                 Signal e;
                 e.type = (ESignalType)m_req_type;
-                e.id = 44;
+                e.id = we.index_symbol;
                 //e.ts = me.timestamp;
-                e.value = we.total_usd;
+                e.value = we.total_usd();
 
 
                 if (!((uint8_t)e.type & m_req_type))
@@ -387,7 +387,7 @@ void Session::event_reader() {
 
     int empty_cycles = 0;
     const size_t size_batch = 4096;
-    WhaleEvent batch[size_batch];
+    std::vector<WhaleEvent> batch(size_batch);
 
     int w_cnt = 0;
 
@@ -401,18 +401,18 @@ void Session::event_reader() {
         size_t total_processed_in_this_tick = 0;
         size_t read_count = 0;
 
-        ////
+        //////
         //uint64_t h = m_event_buffer.get_head(); // memory_order_acquire
 
         //if (h - reader_idx > m_event_buffer.capacity() * 0.9) {
-        //    //reader_idx = h;
-        //    //m_hot_buffer.update_tail(reader_idx);
-        //    printf("\nSession::event_reader OVERLOADED! JUMPING TO HEAD\n");
+        //    reader_idx = h;
+        //    //m_event_buffer.update_tail(reader_idx);
+        //    printf("\nSession::event_reader OVERLOADED! DROPS!\n");
         //}
-        ////         
+        //////         
 
 
-        while ((read_count = m_event_buffer.pop_batch(batch, size_batch)) > 0) {
+        while ((read_count = m_event_buffer.pop_batch(&batch[0], size_batch)) > 0) {
             total_processed_in_this_tick += read_count;
 
             reader_idx += read_count;
@@ -424,7 +424,7 @@ void Session::event_reader() {
 
         if (total_processed_in_this_tick > 0) {
             empty_cycles = 0;
-            //_mm_pause();
+            _mm_pause();
         }
         else {
             empty_cycles++;

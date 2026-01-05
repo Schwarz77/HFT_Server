@@ -19,11 +19,12 @@
 #include <ixwebsocket/IXWebSocket.h>
 
 //constexpr size_t BUFFER_SIZE = 1 << 20;
-const size_t BUFFER_SIZE = 8 * 1024 * 1024; 
-const size_t COLD_BUFFER_SIZE = 2*1024 * 1024;
+constexpr size_t BUFFER_SIZE = 8 * 1024 * 1024;
+constexpr size_t COLD_BUFFER_SIZE = 2 * 1024 * 1024;
+
 
 #pragma pack(push,1)
-struct /*alignas(64)*/ MarketEvent {
+struct MarketEvent {
     double price;
     double quantity;
     bool is_sell;
@@ -37,11 +38,9 @@ struct /*alignas(64)*/ MarketEvent {
     inline double total_usd() const { return price * quantity; }
 };
 #pragma pack(pop)
+static_assert(sizeof(MarketEvent) == 64, "MarketEvent must be 64 bytes");
 
-//struct SessionSnapshot {
-//    std::list<Session*> ptrs;
-//    std::list<std::shared_ptr<Session>> strong;
-//};
+
 
 class Server 
 {

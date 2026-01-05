@@ -26,7 +26,9 @@ const size_t COIN_CNT = _countof(coin_data);
 
 double whale_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 
-CoinVWAP coin_VWAP[COIN_CNT];
+//CoinVWAP coin_VWAP[COIN_CNT];
+
+CoinAnalytics coin_VWAP[COIN_CNT];
 
 
 
@@ -676,12 +678,12 @@ void Server::hot_dispatcher()
 
     uint64_t total_dropped = 0;
 
-    std::memset(coin_VWAP, 0, sizeof(CoinVWAP) * COIN_CNT);
+    //std::memset(coin_VWAP, 0, sizeof(CoinVWAP) * COIN_CNT);
 
-    double b_pv[COIN_CNT];
-    double b_v[COIN_CNT];
-    SecAgg  sec_aggs[COIN_CNT][MAX_SEC_IN_BATCH];
-    uint8_t sec_cnt[COIN_CNT];
+    //double b_pv[COIN_CNT];
+    //double b_v[COIN_CNT];
+    //SecAgg  sec_aggs[COIN_CNT][MAX_SEC_IN_BATCH];
+    //uint8_t sec_cnt[COIN_CNT];
 
 
     std::vector<WhaleEvent> bach_to_client(1024);
@@ -692,15 +694,15 @@ void Server::hot_dispatcher()
 
         size_t avail_read = h - reader_idx;
 
-        ////
-        //if (avail_read > m_hot_buffer.capacity() * 0.9) {
-        //    // We are falling behind, it's drops
-        //    reader_idx = h;
-        //    m_hot_buffer.update_tail(reader_idx);
-        //    printf("\nhot_dispatcher OVERLOADED! JUMPING TO HEAD\n");
+        //
+        if (avail_read > m_hot_buffer.capacity() * 0.9) {
+            // We are falling behind, it's drops
+            reader_idx = h;
+            m_hot_buffer.update_tail(reader_idx);
+            printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
 
-        //}
-        ////
+        }
+        //
 
         if (h <= reader_idx) {
             _mm_pause();
@@ -711,10 +713,10 @@ void Server::hot_dispatcher()
         //size_t to_process = std::min<size_t>(h - reader_idx, 1024);
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
     
-        std::memset(b_pv, 0, 8 * COIN_CNT);
-        std::memset(b_v, 0, 8 * COIN_CNT);
-        std::memset(sec_aggs, 0, sizeof(SecAgg) * COIN_CNT * MAX_SEC_IN_BATCH);
-        std::memset(sec_cnt, 0, sizeof(uint8_t) * COIN_CNT);
+        //std::memset(b_pv, 0, 8 * COIN_CNT);
+        //std::memset(b_v, 0, 8 * COIN_CNT);
+        //std::memset(sec_aggs, 0, sizeof(SecAgg) * COIN_CNT * MAX_SEC_IN_BATCH);
+        //std::memset(sec_cnt, 0, sizeof(uint8_t) * COIN_CNT);
 
         uint64_t first_sec = 0;
         uint64_t last_sec = 0;
@@ -727,63 +729,79 @@ void Server::hot_dispatcher()
                 continue;
 
             double pv = ev.total_usd();
-            b_pv[ev.index_symbol] += pv;
-            b_v[ev.index_symbol] += ev.quantity;
+            //b_pv[ev.index_symbol] += pv;
+            //b_v[ev.index_symbol] += ev.quantity;
 
             uint64_t sec = ev.timestamp / 1000;
 
-            if(i == 0)
-                first_sec = sec;
-            last_sec = sec;
+            //if(i == 0)
+            //    first_sec = sec;
+            //last_sec = sec;
+
+            auto& c = coin_VWAP[ev.index_symbol];
+
+            c.session.add(ev.price, ev.quantity);
+            c.roll50.add(ev.price, ev.quantity);
+            c.ewma.add(ev.price, 0.05);
 
             if (pv >= whale_treshold[ev.index_symbol] ) [[unlikely]]
             {
                 WhaleEvent& we = bach_to_client[cnt_event_to_client++];
                 we.index_symbol = ev.index_symbol;
-                we.total_usd = pv;
+                we.price = ev.price;
+                we.quantity = ev.quantity;
                 we.timestamp = ev.timestamp;
-                we.vwap_1m = vwap_1m(coin_VWAP[ev.index_symbol]);
-                we.vwap_1d = vwap_1d(coin_VWAP[ev.index_symbol]);
+                //we.is_sell = ev.is_sell;  //?
+                we.vwap_sess = c.session.value();
+                we.vwap_roll50 = c.roll50.value();
+                we.vwap_ewma = c.ewma.value();
+
+                we.delta_roll = ev.price - we.vwap_roll50;
+                we.delta_ewma = ev.price - we.vwap_ewma;
+
+                //we.vwap_1m = vwap_1m(coin_VWAP[ev.index_symbol]);
+                //we.vwap_1d = vwap_1d(coin_VWAP[ev.index_symbol]);
+
 
             }
 
-            // slow path accumulation
-            uint8_t& cnt = sec_cnt[ev.index_symbol];
-            if (cnt == 0 || sec_aggs[ev.index_symbol][cnt - 1].sec != sec) {
-                if (cnt < MAX_SEC_IN_BATCH) {
-                    sec_aggs[ev.index_symbol][cnt++] = { sec, 0.0, 0.0 };
-                }
-                else
-                {
-                    // overflow
-                    int ddd = 0;
-                 }
-            }
+            //// slow path accumulation
+            //uint8_t& cnt = sec_cnt[ev.index_symbol];
+            //if (cnt == 0 || sec_aggs[ev.index_symbol][cnt - 1].sec != sec) {
+            //    if (cnt < MAX_SEC_IN_BATCH) {
+            //        sec_aggs[ev.index_symbol][cnt++] = { sec, 0.0, 0.0 };
+            //    }
+            //    else
+            //    {
+            //        // overflow
+            //        int ddd = 0;
+            //     }
+            //}
         }
 
-        if (first_sec == last_sec) [[likely]]
-        {
-            for (int s = 0; s < COIN_CNT; ++s)
-            {
-                if (b_v[s] > 0.0) {
-                    apply_batch(coin_VWAP[s], b_pv[s], b_v[s], first_sec);
-                }
-            }
-        }
-        else [[unlikely]]
-        {
-            for (int s = 0; s < COIN_CNT; ++s)
-            {
-                for (uint8_t i = 0; i < sec_cnt[s]; ++i) {
-                    apply_batch(
-                        coin_VWAP[s],
-                        sec_aggs[s][i].pv,
-                        sec_aggs[s][i].v,
-                        sec_aggs[s][i].sec
-                    );
-                }
-            }
-        }
+        //if (first_sec == last_sec) [[likely]]
+        //{
+        //    for (int s = 0; s < COIN_CNT; ++s)
+        //    {
+        //        if (b_v[s] > 0.0) {
+        //            apply_batch(coin_VWAP[s], b_pv[s], b_v[s], first_sec);
+        //        }
+        //    }
+        //}
+        //else [[unlikely]]
+        //{
+        //    for (int s = 0; s < COIN_CNT; ++s)
+        //    {
+        //        for (uint8_t i = 0; i < sec_cnt[s]; ++i) {
+        //            apply_batch(
+        //                coin_VWAP[s],
+        //                sec_aggs[s][i].pv,
+        //                sec_aggs[s][i].v,
+        //                sec_aggs[s][i].sec
+        //            );
+        //        }
+        //    }
+        //}
 
         //write events
         m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
@@ -833,18 +851,17 @@ void Server::event_dispatcher()
     uint64_t last_tail_update = reader_idx;
     while (m_running)
     {
-        ////
         uint64_t h = m_event_buffer.get_head();
 
         uint64_t avail_read = h - reader_idx;
 
-        ////
+        //////
         //if (avail_read > m_event_buffer.capacity() * 0.9) {
         //    reader_idx = h;
         //    m_event_buffer.update_tail(reader_idx);
-        //    printf("\nevent_dispatcher OVERLOADED! JUMPING TO HEAD\n");
+        //    printf("\nevent_dispatcher OVERLOADED! DROPS!\n");
         //}
-        ////
+        //////
 
         if (h <= reader_idx) {
             _mm_pause();
@@ -874,13 +891,14 @@ void Server::event_dispatcher()
 
             for (auto& pSession : clients)
             {
-                if (ev.index_symbol == pSession->m_ind_symb && ev.total_usd >= pSession->GetWhaleTreshold())
+                if (ev.index_symbol == pSession->m_ind_symb && ev.total_usd() >= pSession->GetWhaleTreshold())
                     pSession->PushEvent(ev);
             }
  
         }
 
-        if (reader_idx - last_tail_update >= 512/*1024*/) {
+        if (reader_idx - last_tail_update >= 512/*1024*/) 
+        {
             m_event_buffer.update_tail(reader_idx);
             last_tail_update = reader_idx;
         }

@@ -12,29 +12,38 @@
 
 class Server;
 
-constexpr size_t SESSION_BUFFER_SIZE = 1*1024*1024; ///256;
+constexpr size_t SESSION_BUFFER_SIZE = 512*1024;
+
 
 #pragma pack(push,1)
-struct /*alignas(64)*/ WhaleEvent {
+struct WhaleEvent {
 
-    //double price;
-    //double quantity;
+    double price;
+    double quantity;
 
     bool is_sell;
     uint64_t timestamp;
-    char symbol[16];
-    int index_symbol; //to index
-    uint64_t symbol_hash;
+    int index_symbol;
 
-    double vwap_1m;
-    double vwap_1d;
-    double total_usd;
+    //double vwap_1m;
+    //double vwap_1d;
+    //double total_usd;
+    double vwap_sess;
+    double vwap_roll50;
+    double vwap_ewma;
+
+    float delta_roll;
+    float delta_ewma;
 
     char pad[3];
 
-    //inline double total_usd() const { return price * quantity; }
+    inline double total_usd() const { return price * quantity; }
+
 };
 #pragma pack(pop)
+static_assert(sizeof(WhaleEvent) == 64, "WhaleEvent must be 64 bytes");
+
+
 
 class Session : public std::enable_shared_from_this<Session> 
 {
@@ -46,7 +55,7 @@ public:
 
     void Start();
     //void DeliverUpdates(const VecSignal& updates);
-    void DeliverUpdates(WhaleEvent* events, size_t size);
+    void DeliverUpdates(std::vector<WhaleEvent>& events, size_t size);
     bool Expired() const;
     void ForceClose();
     void PushEvent(const WhaleEvent& event);
