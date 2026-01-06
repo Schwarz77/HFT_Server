@@ -20,7 +20,7 @@ class StressClient : public Client
 {
 public:
     StressClient(boost::asio::io_context& io, const std::string& host, uint16_t port, std::atomic<int>& ready_clients_count, std::atomic<int>& finished_clients_count, int num_signal_wait)
-        : Client(io, host, port, (ESignalType::discret | ESignalType::analog))
+        : Client(io, host, port, (EProtocolDataType::discret | EProtocolDataType::analog))
         , m_ready_clients_count(ready_clients_count)
         , m_finished_clients_count(finished_clients_count)
         , m_num_signal_wait(num_signal_wait)
@@ -110,10 +110,10 @@ TEST(StressTest, MultipleClientsLoadTest)
         // test data
         VecSignal test_signals =
         {
-            {1, ESignalType::discret, 0},
-            {2, ESignalType::analog, 10.0},
-            {3, ESignalType::discret, 1 },
-            {4, ESignalType::analog, -12.0}
+            {1, EProtocolDataType::discret, 0},
+            {2, EProtocolDataType::analog, 10.0},
+            {3, EProtocolDataType::discret, 1 },
+            {4, EProtocolDataType::analog, -12.0}
         };
         server.SetSignals(test_signals);
 

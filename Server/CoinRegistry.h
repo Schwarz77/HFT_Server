@@ -1,8 +1,11 @@
 #pragma once
 
+#include <string>
+
 struct CoinNode {
     uint64_t key = 0;
-    int index = -1;     
+    int index = -1;  
+    std::string name;
 };
 
 class CoinRegistry {
@@ -31,6 +34,7 @@ public:
 
         table[slot].key = s1;
         table[slot].index = idx;
+        table[slot].name = symbol;
     }
 
     inline int get_index_fast(uint64_t s1) const {
@@ -43,6 +47,18 @@ public:
             slot = (slot + 1) & MASK;
         }
         return -1;
+    }
+
+    inline std::string get_name_fast(uint64_t s1) const {
+        uint32_t slot = calculate_slot(s1);
+
+        while (table[slot].key != 0) {
+            if (table[slot].key == s1) [[likely]] {
+                return table[slot].name;
+            }
+            slot = (slot + 1) & MASK;
+        }
+        return std::string();
     }
 
 private:

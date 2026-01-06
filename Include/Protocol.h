@@ -15,7 +15,7 @@
 
 
 #pragma pack(push,1)
-struct SSignalProtocolHeader
+struct SProtocolHeader
 {
     uint16_t signature;
     uint8_t  version;
@@ -24,55 +24,55 @@ struct SSignalProtocolHeader
     uint32_t len;
 };
 #pragma pack(pop)
-static_assert(sizeof(SSignalProtocolHeader) == 9, "Header must be 9 bytes");
+static_assert(sizeof(SProtocolHeader) == 9, "Header must be 9 bytes");
 
-const uint16_t SIGNAL_HEADER_SIGNATURE = 0xAA55;
+const uint16_t PROTOCOL_HEADER_SIGNATURE = 0xAA55;
 
 
 // Signals
 
-enum class ESignalType : uint8_t
+enum class EProtocolDataType : uint8_t
 {
     unknown = 0,
-    discret = 1 << 0,
-    analog = 1 << 1,
+    Whale = 1 << 0,
+    VWAP = 1 << 1,
 };
 
-inline ESignalType operator|(ESignalType lhs, ESignalType rhs)
+inline EProtocolDataType operator|(EProtocolDataType lhs, EProtocolDataType rhs)
 {
-    using T = std::underlying_type_t<ESignalType>;
-    return static_cast<ESignalType>(static_cast<T>(lhs) | static_cast<T>(rhs));
+    using T = std::underlying_type_t<EProtocolDataType>;
+    return static_cast<EProtocolDataType>(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
 
 
-struct Signal
-{
-    using time_point = std::chrono::steady_clock::time_point;
+//struct Signal
+//{
+//    using time_point = std::chrono::steady_clock::time_point;
+//
+//    uint32_t    id;
+//    ESignalType type;
+//    double      value;
+//    time_point  ts;
+//
+//    Signal()
+//        : id(-1), type(ESignalType::unknown), value(0.0), ts(time_point())
+//    {
+//    }
+//
+//    Signal(uint32_t _id, ESignalType _type, double _value = 0.0, time_point _ts = time_point())
+//        : id(_id), type(_type), value(_value), ts(_ts)
+//    {
+//    }
+//
+//    bool operator == (const Signal& rhs) const
+//    {
+//        return  (       id == rhs.id 
+//                    &&  type == rhs.type 
+//                    &&  double_equals(value, rhs.value) 
+//                    //&&  ts == rhs.ts                      // temp disable for gtest
+//                                                    );
+//    }
+//};
 
-    uint32_t    id;
-    ESignalType type;
-    double      value;
-    time_point  ts;
-
-    Signal()
-        : id(-1), type(ESignalType::unknown), value(0.0), ts(time_point())
-    {
-    }
-
-    Signal(uint32_t _id, ESignalType _type, double _value = 0.0, time_point _ts = time_point())
-        : id(_id), type(_type), value(_value), ts(_ts)
-    {
-    }
-
-    bool operator == (const Signal& rhs) const
-    {
-        return  (       id == rhs.id 
-                    &&  type == rhs.type 
-                    &&  double_equals(value, rhs.value) 
-                    //&&  ts == rhs.ts                      // temp disable for gtest
-                                                    );
-    }
-};
-
-typedef std::map<uint32_t, Signal> MapSignal;
-typedef std::vector<Signal> VecSignal;
+//typedef std::map<uint32_t, Signal> MapSignal;
+//typedef std::vector<Signal> VecSignal;

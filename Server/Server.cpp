@@ -359,10 +359,28 @@ void Server::session_dispatcher()
 
 void Server::register_coins()
 {
+    //for (int i = 0; i < COIN_CNT; i++)
+    //{
+    //    m_reg_coin.register_coin(coin_data[i].symbol, i);
+    //}
+
+    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
+
     for (int i = 0; i < COIN_CNT; i++)
     {
-        m_reg_coin.register_coin(coin_data[i].symbol, i);
+        m_mapCoinSymbol[i] = coin_data[i].symbol;
     }
+}
+
+std::string Server::GetCoinSymbol(int index)
+{
+    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
+
+    auto it = m_mapCoinSymbol.find(index);
+    if (it != m_mapCoinSymbol.end())
+        return it->second;
+
+    return std::string();
 }
 
 void Server::producer_loop()
@@ -408,16 +426,22 @@ void Server::producer_loop()
                 {
                     MarketEvent& ev = batch[i];
 
+                    ev.index_symbol = ind;
+
                     ev.timestamp = batch_ts;
 
-                    std::memcpy(ev.symbol, t.symbol, 16);
-                    //ev.price = t.price + (i % 10) * 0.1;
+                    //std::memcpy(ev.symbol, t.symbol, 16);  need remove symbol from MarketEvent
+
                     ev.price = t.price + fast_float_range(0, 0.7);
 
                     if (cnt_whale_gen++ >= 75'000'000)
                     {
                         cnt_whale_gen = 0;
-                        ev.quantity = 100;
+                        //ev.quantity = 100;
+                        ev.quantity =       (ev.index_symbol == 0) ?     1 + fast_range(5) + fast_float_range(0, 0.99)
+                                        :   (ev.index_symbol == 1) ?    40 + fast_range(200) + fast_float_range(0, 0.99)
+                                        :   (ev.index_symbol == 2) ?    555 + fast_range(555*5) + fast_float_range(0, 0.99)
+                                        :                               170 + fast_range(170 * 5) + fast_float_range(0, 0.99);
                     }
                     else
                     {
@@ -425,7 +449,7 @@ void Server::producer_loop()
                     }
 
                     ev.is_sell = ((i & 1) == 0); //(i % 2 == 0);
-                    ev.index_symbol = ind;
+
 
                     cnt++;
  /*                   if (ev.quantity > 99 && ev.total_usd() >= 960000.5)

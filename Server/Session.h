@@ -82,7 +82,7 @@ private:
 
     Server& m_server;
 
-    std::array<uint8_t, sizeof(SSignalProtocolHeader)> m_buf_header;
+    std::array<uint8_t, sizeof(SProtocolHeader)> m_buf_header;
     std::vector<uint8_t> m_buf_body;
 
     std::deque<std::shared_ptr<std::vector<uint8_t>>> m_que_write;

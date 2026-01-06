@@ -42,25 +42,25 @@ TEST(ServerTest, SnapshotFiltering)
     // prepare test data
     VecSignal test_signals = 
     {
-        {1, ESignalType::discret, 0.0},
-        {2, ESignalType::analog, 10.0},
-        {3, ESignalType::discret, 0.0},
+        {1, EProtocolDataType::discret, 0.0},
+        {2, EProtocolDataType::analog, 10.0},
+        {3, EProtocolDataType::discret, 0.0},
     };
     server.FillState(test_signals);
 
     // require discret (0x01)
-    uint8_t discret_mask = (uint8_t)ESignalType::discret;
+    uint8_t discret_mask = (uint8_t)EProtocolDataType::discret;
     auto snapshot_discret = server.GetSnapshot(discret_mask);
     
     // wait 2 discret signals (ID 1, 3)
     ASSERT_EQ(2, snapshot_discret.size());
-    ASSERT_EQ(ESignalType::discret, snapshot_discret[0].type); 
+    ASSERT_EQ(EProtocolDataType::discret, snapshot_discret[0].type); 
 
     // require analog (0x02)
-    uint8_t analog_mask = (uint8_t)ESignalType::analog;
+    uint8_t analog_mask = (uint8_t)EProtocolDataType::analog;
     auto snapshot_analog = server.GetSnapshot(analog_mask);
     
     // wait 1 discret signal (ID 2)
     ASSERT_EQ(1, snapshot_analog.size());
-    ASSERT_EQ(ESignalType::analog, snapshot_analog[0].type); 
+    ASSERT_EQ(EProtocolDataType::analog, snapshot_analog[0].type); 
 }

@@ -22,7 +22,7 @@ TEST(Perf, ServerThroughput)
 
     for (int i = 0; i < N; i++) 
     {
-        Signal s{ (uint32_t)i, ESignalType::analog, double(i) };
+        Signal s{ (uint32_t)i, EProtocolDataType::analog, double(i) };
         server.PushSignal(s);
     }
 

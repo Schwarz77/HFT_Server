@@ -70,10 +70,10 @@ void Session::async_read_header()
                 }
 
 
-                SSignalProtocolHeader hdr;
+                SProtocolHeader hdr;
                 std::memcpy(&hdr, m_buf_header.data(), sizeof(hdr));
 
-                if (net_to_host_u16(hdr.signature) != SIGNAL_HEADER_SIGNATURE)
+                if (net_to_host_u16(hdr.signature) != PROTOCOL_HEADER_SIGNATURE)
                 {
                     std::cerr << "\nSession: bad signature, closing\n";
                     close();
@@ -210,41 +210,93 @@ void Session::DeliverUpdates(std::vector<WhaleEvent>& events, size_t size)
             }
 
             std::vector<uint8_t> payload;
-            payload.reserve(size * (4 + 1 + 8));
+            payload.reserve(size * (sizeof(WhaleEvent)) + 4);
+
+            // count
+            uint32_t count = host_to_net_u32(static_cast<uint32_t>(size));
+            payload.insert(payload.end(), (uint8_t*)&count, (uint8_t*)&count + 4);
 
             for (int i=0; i<size; i++ )
             {
                 //Signal& e = events[i];
                 const WhaleEvent& we = events[i];
-                Signal e;
-                e.type = (ESignalType)m_req_type;
-                e.id = we.index_symbol;
-                //e.ts = me.timestamp;
-                e.value = we.total_usd();
 
 
-                if (!((uint8_t)e.type & m_req_type))
-                {
-                    continue;
-                }
+                // price
+                uint64_t price;
+                static_assert(sizeof(price) == sizeof(we.price), "double size mismatch");
+                std::memcpy(&price, &we.price, sizeof(price));
+                price = host_to_net_u64(price);
+                payload.insert(payload.end(), (uint8_t*)&price, (uint8_t*)&price + 8);
 
-                // id
-                uint32_t idSignal = host_to_net_u32(e.id);
-                payload.insert(payload.end(), (uint8_t*)&idSignal, (uint8_t*)&idSignal + 4);
 
-                // type 
-                payload.push_back(static_cast<uint8_t>(e.type));
+                //quantity
+                uint64_t quantity;
+                static_assert(sizeof(quantity) == sizeof(we.quantity), "double size mismatch");
+                std::memcpy(&quantity, &we.quantity, sizeof(quantity));
+                quantity = host_to_net_u64(quantity);
+                payload.insert(payload.end(), (uint8_t*)&quantity, (uint8_t*)&quantity + 8);
 
-                // value
-                uint64_t value;
-                static_assert(sizeof(value) == sizeof(e.value), "double size mismatch");
-                std::memcpy(&value, &e.value, sizeof(value));
-                value = host_to_net_u64(value);
-                payload.insert(payload.end(), (uint8_t*)&value, (uint8_t*)&value + 8);
+                //is_sell
+                payload.push_back(static_cast<uint8_t>(we.is_sell));
+
+
+                //timestamp
+                uint64_t timestamp;
+                static_assert(sizeof(timestamp) == sizeof(we.timestamp), "double size mismatch");
+                std::memcpy(&timestamp, &we.timestamp, sizeof(timestamp));
+                timestamp = host_to_net_u64(timestamp);
+                payload.insert(payload.end(), (uint8_t*)&timestamp, (uint8_t*)&timestamp + 8);
+
+                //symbol name
+                std::string symbol = m_server.GetCoinSymbol(we.index_symbol);
+                uint16_t str_len = symbol.length();
+                str_len = host_to_net_u16(str_len);
+                payload.insert(payload.end(), (uint8_t*)&str_len, (uint8_t*)&str_len + 2);
+                payload.insert(payload.end(), (uint8_t*)symbol.data(), (uint8_t*)symbol.data() + symbol.length());
+
+                //vwap_sess
+                uint64_t vwap_sess;
+                static_assert(sizeof(vwap_sess) == sizeof(we.vwap_sess), "double size mismatch");
+                std::memcpy(&vwap_sess, &we.vwap_sess, sizeof(vwap_sess));
+                vwap_sess = host_to_net_u64(vwap_sess);
+                payload.insert(payload.end(), (uint8_t*)&vwap_sess, (uint8_t*)&vwap_sess + 8);
+
+                //vwap_roll50
+                uint64_t vwap_roll50;
+                static_assert(sizeof(vwap_roll50) == sizeof(we.vwap_roll50), "double size mismatch");
+                std::memcpy(&vwap_roll50, &we.vwap_roll50, sizeof(vwap_roll50));
+                vwap_roll50 = host_to_net_u64(vwap_roll50);
+                payload.insert(payload.end(), (uint8_t*)&vwap_roll50, (uint8_t*)&vwap_roll50 + 8);
+
+                //vwap_ewma
+                uint64_t vwap_ewma;
+                static_assert(sizeof(vwap_ewma) == sizeof(we.vwap_ewma), "double size mismatch");
+                std::memcpy(&vwap_ewma, &we.vwap_ewma, sizeof(vwap_ewma));
+                vwap_ewma = host_to_net_u64(vwap_ewma);
+                payload.insert(payload.end(), (uint8_t*)&vwap_ewma, (uint8_t*)&vwap_ewma + 8);
+
+                //delta_roll
+                double delta_roll_src = we.delta_roll;
+                uint64_t delta_roll;
+                static_assert(sizeof(delta_roll) == sizeof(delta_roll_src), "double size mismatch");
+                std::memcpy(&delta_roll, &delta_roll_src, sizeof(delta_roll));
+                delta_roll = host_to_net_u64(delta_roll);
+                payload.insert(payload.end(), (uint8_t*)&delta_roll, (uint8_t*)&delta_roll + 8);
+
+
+                //delta_ewma
+                double delta_ewma_src = we.delta_ewma;
+                uint64_t delta_ewma;
+                static_assert(sizeof(delta_ewma) == sizeof(delta_ewma_src), "double size mismatch");
+                std::memcpy(&delta_ewma, &delta_ewma_src, sizeof(delta_ewma));
+                delta_ewma = host_to_net_u64(delta_ewma);
+                payload.insert(payload.end(), (uint8_t*)&delta_ewma, (uint8_t*)&delta_ewma + 8);
+
             }
 
-            SSignalProtocolHeader hdr;
-            hdr.signature = host_to_net_u16(SIGNAL_HEADER_SIGNATURE);
+            SProtocolHeader hdr;
+            hdr.signature = host_to_net_u16(PROTOCOL_HEADER_SIGNATURE);
             hdr.version = 1;
             hdr.data_type = 0x02;
             hdr.msg_num = m_msg_num++;
@@ -390,10 +442,6 @@ void Session::event_reader() {
     std::vector<WhaleEvent> batch(size_batch);
 
     int w_cnt = 0;
-
-    VecSignal updates;
-    updates.reserve(1);
-    updates.push_back(Signal());
 
     uint64_t reader_idx = m_event_buffer.get_head();
 

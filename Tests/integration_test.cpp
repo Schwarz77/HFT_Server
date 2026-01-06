@@ -10,7 +10,7 @@
 class TestClient : public Client 
 {
 public:
-    TestClient(boost::asio::io_context& io, const std::string& host, uint16_t port, ESignalType signal_type, std::promise<bool>&& data_received_promise, std::promise<bool>&& snapshot_received_promise)
+    TestClient(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::promise<bool>&& data_received_promise, std::promise<bool>&& snapshot_received_promise)
         : Client(io, host, port, signal_type)
         , m_data_received_promise(std::move(data_received_promise))
         , m_snapshot_received_promise(std::move(snapshot_received_promise))
@@ -47,7 +47,7 @@ protected:
                 double val;
                 std::memcpy(&val, &ubits, sizeof(val));
 
-                Signal s(id, static_cast<ESignalType>(type), val);
+                Signal s(id, static_cast<EProtocolDataType>(type), val);
 
                 // check seconds msgs
                 if (m_cnt_packet > 1 && m_map_signal.find(id) == m_map_signal.end())
@@ -147,7 +147,7 @@ void add_signal_changes(int cnt_circle, VecSignal& signals, std::map<uint32_t, S
         }
 
         Signal& s = it->second;
-        s.value = (s.type == ESignalType::discret) ? (discret_val(rng)) : it->second.value + delta(rng);
+        s.value = (s.type == EProtocolDataType::discret) ? (discret_val(rng)) : it->second.value + delta(rng);
         s.ts = std::chrono::steady_clock::now(); // now in Signal::operator==() compare time is disable
 
         signal_changes.push_back(s);
@@ -162,7 +162,7 @@ VecSignal make_wrong_time_signals(const VecSignal& signals)
 
     for (auto s : signals)
     {
-        s.value = s.type == ESignalType::discret ? 1 : 0.5;
+        s.value = s.type == EProtocolDataType::discret ? 1 : 0.5;
 
         std::chrono::seconds back_off(600);
         s.ts -= back_off;
@@ -192,10 +192,10 @@ TEST(IntegrationTest, DataLogicTest)
         // prepare test data
         VecSignal test_signals =
         {
-            {1, ESignalType::discret, 0},
-            {2, ESignalType::analog, 10.0},
-            {3, ESignalType::discret, 1},
-            {4, ESignalType::analog, 12.5},
+            {1, EProtocolDataType::discret, 0},
+            {2, EProtocolDataType::analog, 10.0},
+            {3, EProtocolDataType::discret, 1},
+            {4, EProtocolDataType::analog, 12.5},
         };
 
         server.SetSignals(test_signals);
@@ -213,7 +213,7 @@ TEST(IntegrationTest, DataLogicTest)
 
         // test client 
         boost::asio::io_context io_client;
-        TestClient client(io_client, "127.0.0.1", 5000, (ESignalType::discret | ESignalType::analog), std::move(data_received_promise), std::move(snapshot_ready_promise));
+        TestClient client(io_client, "127.0.0.1", 5000, (EProtocolDataType::discret | EProtocolDataType::analog), std::move(data_received_promise), std::move(snapshot_ready_promise));
 
         client.EnableShowLogMsg(false);
 

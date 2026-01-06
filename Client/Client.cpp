@@ -13,7 +13,7 @@ using tcp = asio::ip::tcp;
 using error_code = boost::system::error_code;
 
 
-Client::Client(asio::io_context& io, const std::string& host, uint16_t port, ESignalType signal_type)
+Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type)
     : m_io(io),
     m_socket(io),
     m_resolver(io),
@@ -52,12 +52,12 @@ void Client::Stop()
     }
 }
 
-MapSignal Client::GeSignals()
-{
-    std::lock_guard<std::mutex> lock(m_mtx_signal);
-
-    return m_map_signal;
-}
+//MapSignal Client::GeSignals()
+//{
+//    std::lock_guard<std::mutex> lock(m_mtx_signal);
+//
+//    return m_map_signal;
+//}
 
 void Client::connect()
 {
@@ -108,8 +108,8 @@ void Client::send_subscribe()
     payload.push_back(static_cast<uint8_t>(m_signal_type));
 
     // Header
-    SSignalProtocolHeader hdr;
-    hdr.signature = host_to_net_u16(SIGNAL_HEADER_SIGNATURE);
+    SProtocolHeader hdr;
+    hdr.signature = host_to_net_u16(PROTOCOL_HEADER_SIGNATURE);
     hdr.version = 1;
     hdr.data_type = 0x01; // subscribe
     hdr.msg_num = 0;
@@ -169,8 +169,8 @@ void Client::start_read_header()
             }
 
             // validate header
-            SSignalProtocolHeader hdr = m_header;
-            if (net_to_host_u16(hdr.signature) != SIGNAL_HEADER_SIGNATURE)
+            SProtocolHeader hdr = m_header;
+            if (net_to_host_u16(hdr.signature) != PROTOCOL_HEADER_SIGNATURE)
             {
                 std::cerr << "Bad signature in header\n";
                 schedule_reconnect();
@@ -247,51 +247,168 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
     if (data_type == 0x02)
     {
         size_t pos = 0;
-        while (pos + 13 <= body.size())
+
+        if (pos + 4 > body.size())
         {
-            // id
-            uint32_t id;
-            std::memcpy(&id, body.data() + pos, 4);
-            id = ntohl(id);
-            pos += 4;
+            std::cout << "No cont_whale\n";
+            return;
+        }
 
-            // type
-            uint8_t type = body[pos++];
+        uint32_t cnt;
+        std::memcpy(&cnt, body.data() + pos, 4);
+        cnt = net_to_host_u32(cnt);
+        pos += 4;
 
-            // value
+        for (int i = 0; i < cnt; i++)
+        {
             uint64_t ubits;
+
+            // price
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No price\n";
+                return;
+            }
+
             std::memcpy(&ubits, body.data() + pos, 8);
             ubits = net_to_host_u64(ubits);
             pos += 8;
 
-            double val;
-            std::memcpy(&val, &ubits, sizeof(val));
+            double price;
+            std::memcpy(&price, &ubits, sizeof(price));
+
+            //quantity
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No quantity\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double quantity;
+            std::memcpy(&quantity, &ubits, sizeof(quantity));
+
+            //is_sell
+            if (pos + 1 > body.size())
+            {
+                std::cout << "No is_sell\n";
+                return;
+            }
+            uint8_t is_sell = body[pos++];
+
+            //timestamp
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No timestamp\n";
+                return;
+            }
+            uint64_t timestamp;
+            std::memcpy(&timestamp, body.data() + pos, 8); 
+            timestamp = net_to_host_u32(timestamp);
+            pos += 8;
+
+            //symbol name_len
+            if (pos + 2 > body.size())
+            {
+                std::cout << "No symbol_length\n";
+                return;
+            }
+            uint16_t symb_len;
+            std::memcpy(&symb_len, body.data() + pos, 2);
+            symb_len = net_to_host_u16(symb_len);
+            pos += 2;
+
+            //symbol
+            if (pos + symb_len > body.size())
+            {
+                std::cout << "No symbol_data\n";
+                return;
+            }
+
+            std::string symbol((char*)body.data() + pos, symb_len);
+            pos += symb_len;
+
+            //vwap_sess
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No vwap_sess\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double vwap_sess;
+            std::memcpy(&vwap_sess, &ubits, sizeof(vwap_sess));
+
+            //vwap_roll50
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No vwap_roll50\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double vwap_roll50;
+            std::memcpy(&vwap_roll50, &ubits, sizeof(vwap_roll50));
+
+            //vwap_ewma
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No vwap_ewma\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double vwap_ewma;
+            std::memcpy(&vwap_ewma, &ubits, sizeof(vwap_ewma));
+
+            //delta_roll
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No delta_roll\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double delta_roll;
+            std::memcpy(&delta_roll, &ubits, sizeof(delta_roll));
+
+            //delta_ewma
+            if (pos + 8 > body.size())
+            {
+                std::cout << "No delta_ewma\n";
+                return;
+            }
+
+            std::memcpy(&ubits, body.data() + pos, 8);
+            ubits = net_to_host_u64(ubits);
+            pos += 8;
+
+            double delta_ewma;
+            std::memcpy(&delta_ewma, &ubits, sizeof(delta_ewma));
+
 
             if (m_show_log_msg)
             {
-                //if(m_cnt_packet == 1)
-                //    std::cout << "Init state: id=" << id << " type=" << int(type) << " val=" << val << "\n";
-                //else
-                //{
-                //    w_cnt++;
-                //    //std::cout << "Update: id=" << id << " type=" << int(type) << " val=" << val << "\n";
-                //    //std::cout << "Whale cnt: " << w_cnt << "\n";
-                //}
-                std::cout << "data: id=" << id << " type=" << int(type) << " val=" << val << "\n";
-
+                printf("\nWhale ALERT %s: price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
             }
-
-
-            Signal s(id, static_cast<ESignalType>(type), val);
-            
-            {
-                std::lock_guard<std::mutex> lock(m_mtx_signal);
-
-                m_map_signal[id] = s;
-            }
-
 
         }
+
     }
     else if (data_type == 0x03)
     {
@@ -330,9 +447,9 @@ void Client::clear_data()
 {
     m_cnt_packet = 0;
 
-    {
-        std::lock_guard<std::mutex> lock(m_mtx_signal);
+    //{
+    //    std::lock_guard<std::mutex> lock(m_mtx_signal);
 
-        m_map_signal.clear();
-    }
+    //    m_map_signal.clear();
+    //}
 }

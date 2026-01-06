@@ -9,7 +9,7 @@ int main(int argc, char* argv[])
         std::string host = "127.0.0.1";
         uint16_t port = 6000;
 
-        ESignalType reqType = ESignalType::discret | ESignalType::analog;
+        EProtocolDataType reqType = EProtocolDataType::Whale | EProtocolDataType::VWAP;
 
         if (argc >= 2)
             host = argv[1];
@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
             port = static_cast<uint16_t>(std::atoi(argv[2]));
 
         if (argc >= 4)
-            reqType = static_cast<ESignalType>(std::atoi(argv[3]));
+            reqType = static_cast<EProtocolDataType>(std::atoi(argv[3]));
 
 
         boost::asio::io_context io;

@@ -11,7 +11,7 @@
 class Client
 {
 public:
-    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, ESignalType signal_type);
+    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type);
     virtual ~Client();
 
     // disable copying
@@ -24,7 +24,7 @@ public:
     void EnableShowLogMsg(bool is_enable) { m_show_log_msg = is_enable; }
     bool IsShowLogMsg() { return m_show_log_msg; }
 
-    MapSignal GeSignals();
+    //MapSignal GeSignals();
     uint64_t GetPacketCount() { return m_cnt_packet; }
 
 private:
@@ -45,16 +45,16 @@ protected:
 
     std::string m_host;
     uint16_t m_port;
-    ESignalType m_signal_type;
+    EProtocolDataType m_signal_type;
 
     // inbound buffers/state
-    SSignalProtocolHeader m_header;
+    SProtocolHeader m_header;
     std::vector<uint8_t> m_body;
 
     std::atomic<uint64_t> m_cnt_packet{0};
 
-    std::mutex m_mtx_signal;
-    MapSignal m_map_signal;
+    //std::mutex m_mtx_signal;
+    //MapSignal m_map_signal;
 
     std::atomic<bool> m_show_log_msg{ true };
 };

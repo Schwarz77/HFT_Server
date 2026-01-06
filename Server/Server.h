@@ -73,6 +73,9 @@ public:
 
     boost::asio::io_context& GetIoContext() { return m_io; }
 
+    //CoinRegistry& GetCoinRegistry() { return m_reg_coin; }
+    std::string GetCoinSymbol(int index);
+
 private:
     void do_accept();
     void session_dispatcher();
@@ -108,12 +111,12 @@ protected:
 
     RingBuffer<WhaleEvent, COLD_BUFFER_SIZE> m_event_buffer;
 
-    CoinRegistry m_reg_coin;
+    //CoinRegistry m_reg_coin;
 
     // signal event queue
     std::mutex m_mtx_queue;
     std::condition_variable m_cv_queue;
-    std::deque<Signal> m_queue;
+    //std::deque<Signal> m_queue;
     std::atomic<bool> m_running{ true };
 
     std::thread m_session_dispatcher;
@@ -126,6 +129,9 @@ protected:
     std::atomic<bool> m_show_log_msg{ true };
 
     std::atomic<bool> m_need_update_clients{ false };
+
+    std::mutex m_mtx_coin_symbol;
+    std::unordered_map<int, std::string> m_mapCoinSymbol;
 
 };
 

@@ -41,10 +41,10 @@ int main()
         server.EnableShowLogMsg(true);
 
         //VecSignal signals = 
-        //{   Signal{ 1, ESignalType::discret } ,
-        //    Signal{ 2, ESignalType::discret },
-        //    Signal{ 3, ESignalType::analog },
-        //    Signal{ 4, ESignalType::analog },
+        //{   Signal{ 1, EProtocolDataType::discret } ,
+        //    Signal{ 2, EProtocolDataType::discret },
+        //    Signal{ 3, EProtocolDataType::analog },
+        //    Signal{ 4, EProtocolDataType::analog },
         //};
 
         //server.SetSignals(signals);
@@ -97,8 +97,8 @@ void thread_set_signals(Server& server, size_t signal_count, bool& isStop, std::
         VecSignal signals;
         for (int i = 0; i < signal_count; i += 2)
         {
-            signals.push_back(Signal(i, ESignalType::discret));
-            signals.push_back(Signal(i + 1, ESignalType::analog));
+            signals.push_back(Signal(i, EProtocolDataType::discret));
+            signals.push_back(Signal(i + 1, EProtocolDataType::analog));
         }
 
         server.SetSignals(signals);
@@ -134,7 +134,7 @@ void thread_update_signals(Server& server, size_t signal_count, bool& isStop, st
 
         if (server.GetSignal(id, s))
         {
-            s.value = (s.type == ESignalType::discret) ? (discret_val(rng)) : s.value + delta(rng);
+            s.value = (s.type == EProtocolDataType::discret) ? (discret_val(rng)) : s.value + delta(rng);
             s.ts = steady_clock::now();
 
             server.PushSignal(s);
