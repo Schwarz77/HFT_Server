@@ -11,7 +11,7 @@
 class Client
 {
 public:
-    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type);
+    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol, double treshold);
     virtual ~Client();
 
     // disable copying
@@ -45,7 +45,10 @@ protected:
 
     std::string m_host;
     uint16_t m_port;
-    EProtocolDataType m_signal_type;
+    EProtocolDataType m_data_type;
+    
+    std::string m_coin_symbol;
+    double m_treshold;
 
     // inbound buffers/state
     SProtocolHeader m_header;

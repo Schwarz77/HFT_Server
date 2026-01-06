@@ -61,6 +61,7 @@ public:
     void PushEvent(const WhaleEvent& event);
 
     inline double GetWhaleTreshold() { return m_whale_treshold; };
+    inline int GetSymbolIndex() { return m_ind_symb; };
 
 private:
     void async_read_header();
@@ -106,6 +107,5 @@ public:
     //uint64_t m_coin_name_hash{0};
     double m_whale_treshold{ 105000 };
     int m_ind_symb{ 0 };
-
 
 };

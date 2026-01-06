@@ -104,16 +104,16 @@ void Session::async_read_header()
                     return;
                 }
 
-                ///
-                // tmp emulate ETH client
-                static int cnt_gen = 0;
-                if (cnt_gen++ % 4 == 1)
-                {
-                    m_whale_treshold = 125000;
-                    m_ind_symb = 1;//ETH
-                }
-                //
-                ///
+                /////
+                //// tmp emulate ETH client
+                //static int cnt_gen = 0;
+                //if (cnt_gen++ % 4 == 1)
+                //{
+                //    m_whale_treshold = 125000;
+                //    m_ind_symb = 1;//ETH
+                //}
+                ////
+                /////
 
                 async_read_body(len, data_type);
 
@@ -181,23 +181,75 @@ void Session::handle_subscribe(const std::vector<uint8_t>& payload)
         return;
     }
 
+    size_t pos = 0;
+
+    if (pos + 1 > payload.size())
+    {
+        std::cout << "No req_type\n";
+        close();
+        return;
+    }
+
     m_req_type = payload[0];
+    pos++;
+
+    // count
+    if (pos + 4 > payload.size())
+    {
+        std::cout << "No cont_coin\n";
+        close();
+        return;
+    }
+
+
+    //symbol name_len
+    if (pos + 1 > payload.size())
+    {
+        std::cout << "No symbol_length\n";
+        close();
+        return;
+    }
+    uint8_t symb_len = payload[pos++];
+
+    //symbol
+    if (pos + symb_len > payload.size())
+    {
+        std::cout << "No symbol_data\n";
+        close();
+        return;
+    }
+
+    std::string symbol((char*)payload.data() + pos, symb_len);
+    pos += symb_len;
+
+    int ind = m_server.GetCoinIndex(symbol);
+    m_ind_symb = ind;
+
+
+    //treshold
+    if (pos + 8 > payload.size())
+    {
+        std::cout << "No treshold\n";
+        close();
+        return;
+    }
+
+    uint64_t ubits;
+    std::memcpy(&ubits, payload.data() + pos, 8);
+    ubits = net_to_host_u64(ubits);
+    pos += 8;
+
+    std::memcpy(&m_whale_treshold, &ubits, sizeof(m_whale_treshold));
+
 
     if (m_server.IsShowLogMsg())
         std::cout << "\nSession: client subscribed to type=" << int(m_req_type) << "\n";
 
     m_server.RegisterSession(shared_from_this());
 
-    //// send initial snapshot for this type
-    //auto snap = m_server.GetSnapshot(m_req_type);
-    //if (!snap.empty())
-    //{
-    //    DeliverUpdates(snap);
-    //}
 
     do_write();
 }
-
 
 void Session::DeliverUpdates(std::vector<WhaleEvent>& events, size_t size)
 {

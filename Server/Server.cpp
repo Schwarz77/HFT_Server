@@ -368,7 +368,8 @@ void Server::register_coins()
 
     for (int i = 0; i < COIN_CNT; i++)
     {
-        m_mapCoinSymbol[i] = coin_data[i].symbol;
+        m_mapCoinInd2Symbol[i] = coin_data[i].symbol;
+        m_mapCoinSymbol2Ind[coin_data[i].symbol] = i;
     }
 }
 
@@ -376,11 +377,22 @@ std::string Server::GetCoinSymbol(int index)
 {
     std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
 
-    auto it = m_mapCoinSymbol.find(index);
-    if (it != m_mapCoinSymbol.end())
+    auto it = m_mapCoinInd2Symbol.find(index);
+    if (it != m_mapCoinInd2Symbol.end())
         return it->second;
 
     return std::string();
+}
+
+int Server::GetCoinIndex(std::string& symbol)
+{
+    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
+
+    auto it = m_mapCoinSymbol2Ind.find(symbol);
+    if (it != m_mapCoinSymbol2Ind.end())
+        return it->second;
+
+    return -1;
 }
 
 void Server::producer_loop()
@@ -915,7 +927,7 @@ void Server::event_dispatcher()
 
             for (auto& pSession : clients)
             {
-                if (ev.index_symbol == pSession->m_ind_symb && ev.total_usd() >= pSession->GetWhaleTreshold())
+                if (ev.index_symbol == pSession->GetSymbolIndex() && ev.total_usd() >= pSession->GetWhaleTreshold())
                     pSession->PushEvent(ev);
             }
  

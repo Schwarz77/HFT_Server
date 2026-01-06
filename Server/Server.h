@@ -75,6 +75,7 @@ public:
 
     //CoinRegistry& GetCoinRegistry() { return m_reg_coin; }
     std::string GetCoinSymbol(int index);
+    int GetCoinIndex(std::string& symbol);
 
 private:
     void do_accept();
@@ -131,7 +132,8 @@ protected:
     std::atomic<bool> m_need_update_clients{ false };
 
     std::mutex m_mtx_coin_symbol;
-    std::unordered_map<int, std::string> m_mapCoinSymbol;
+    std::unordered_map<int, std::string> m_mapCoinInd2Symbol;
+    std::unordered_map<std::string, int> m_mapCoinSymbol2Ind;
 
 };
 

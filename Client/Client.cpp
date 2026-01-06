@@ -13,14 +13,17 @@ using tcp = asio::ip::tcp;
 using error_code = boost::system::error_code;
 
 
-Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type)
+Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol, double treshold)
     : m_io(io),
     m_socket(io),
     m_resolver(io),
     m_reconnect_timer(io),
     m_host(host),
     m_port(port),
-    m_signal_type(signal_type)
+    m_data_type(signal_type),
+    m_coin_symbol(coin_symbol), 
+    m_treshold(treshold)
+
 {
 }
 
@@ -105,7 +108,22 @@ void Client::send_subscribe()
 {
     // Build subscribe payload
     std::vector<uint8_t> payload;
-    payload.push_back(static_cast<uint8_t>(m_signal_type));
+    payload.push_back(static_cast<uint8_t>(m_data_type));
+
+
+    //symbol name
+    payload.push_back(m_coin_symbol.length());
+    payload.insert(payload.end(), (uint8_t*)m_coin_symbol.data(), (uint8_t*)m_coin_symbol.data() + m_coin_symbol.length());
+
+
+    // treshold
+    uint64_t treshold;
+    static_assert(sizeof(m_treshold) == sizeof(m_treshold), "double size mismatch");
+    std::memcpy(&treshold, &m_treshold, sizeof(treshold));
+    treshold = host_to_net_u64(treshold);
+    payload.insert(payload.end(), (uint8_t*)&treshold, (uint8_t*)&treshold + 8);
+
+
 
     // Header
     SProtocolHeader hdr;
@@ -404,7 +422,7 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
 
             if (m_show_log_msg)
             {
-                printf("\nWhale ALERT %s: price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
+                printf("\nWHALE ALERT: %s total_price=%.2f price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price * quantity, price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
             }
 
         }
