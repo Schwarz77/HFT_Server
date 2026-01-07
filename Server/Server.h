@@ -92,6 +92,12 @@ private:
 
     void register_coins();
 
+    inline uint64_t symbol2u64(const char* s)
+    {
+        uint64_t v = 0;
+        std::memcpy(&v, s, 8);
+        return v;
+    }
 
 protected:
 

@@ -17,16 +17,14 @@ using steady_clock = std::chrono::steady_clock;
 ///////////////////////////////////////////////////////////////////////
 
 
-const CoinPair coin_data[] =
+const CoinPair coins[] =
 {
     {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
 };
 
-const size_t COIN_CNT = _countof(coin_data);
+const size_t COIN_CNT = _countof(coins);
 
-double whale_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
-
-//CoinVWAP coin_VWAP[COIN_CNT];
+double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 
 CoinAnalytics coin_VWAP[COIN_CNT];
 
@@ -232,8 +230,8 @@ void Server::register_coins()
 
     for (int i = 0; i < COIN_CNT; i++)
     {
-        m_mapCoinInd2Symbol[i] = coin_data[i].symbol;
-        m_mapCoinSymbol2Ind[coin_data[i].symbol] = i;
+        m_mapCoinInd2Symbol[i] = coins[i].symbol;
+        m_mapCoinSymbol2Ind[coins[i].symbol] = i;
     }
 }
 
@@ -306,7 +304,7 @@ void Server::emulator_loop()
                 //int ind = i % COIN_CNT;
                 int ind = fast_range(COIN_CNT - 1);
 
-                auto& t = coin_data[ind];
+                auto& t = coins[ind];
 
                 // time
                 if(cnt_tm_upd++ >= 50'000'000)
@@ -423,23 +421,14 @@ void Server::clear_sessions()
 
 }
 
-////
-
-static inline uint64_t symbol_u64(const char* s)
-{
-    uint64_t v = 0;
-    std::memcpy(&v, s, 8);
-    return v;
-}
-
 inline void Server::parse_single_event(simdjson::dom::element item) 
 {
     MarketEvent event;
 
-    static uint64_t btc = symbol_u64("BTCUSDT");
-    static uint64_t eth = symbol_u64("ETHUSDT");
-    static uint64_t sol = symbol_u64("SOLUSDT");
-    static uint64_t bnb = symbol_u64("BNBUSDT");
+    static uint64_t btc = symbol2u64("BTCUSDT");
+    static uint64_t eth = symbol2u64("ETHUSDT");
+    static uint64_t sol = symbol2u64("SOLUSDT");
+    static uint64_t bnb = symbol2u64("BNBUSDT");
 
     // 's' - it's deal
     std::string_view s;
@@ -460,7 +449,7 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         }
 
         ///// tmp
-        uint64_t s64 = symbol_u64(event.symbol);
+        uint64_t s64 = symbol2u64(event.symbol);
 
         if(s64 == btc)
             event.index_symbol = 0;
@@ -471,7 +460,7 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         else if (s64 == bnb)
             event.index_symbol = 3;
         else
-            event.index_symbol = 0; 
+            event.index_symbol = -1; 
         //////
 
 
@@ -705,7 +694,7 @@ void Server::hot_dispatcher()
                 //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
             }
 
-            if (pv >= whale_treshold[ev.index_symbol]) [[unlikely]]
+            if (pv >= whale_global_treshold[ev.index_symbol]) [[unlikely]]
             {
                 WhaleEvent& we = bach_to_client[cnt_event_to_client++];
                 we.index_symbol = ev.index_symbol;
