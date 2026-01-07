@@ -377,19 +377,22 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
             double vwap_roll50;
             std::memcpy(&vwap_roll50, &ubits, sizeof(vwap_roll50));
 
-            //vwap_ewma
-            if (pos + 8 > body.size())
-            {
-                std::cout << "No vwap_ewma\n";
-                return;
-            }
 
-            std::memcpy(&ubits, body.data() + pos, 8);
-            ubits = net_to_host_u64(ubits);
-            pos += 8;
+                // not used
+            ////vwap_ewma
+            //if (pos + 8 > body.size())
+            //{
+            //    std::cout << "No vwap_ewma\n";
+            //    return;
+            //}
 
-            double vwap_ewma;
-            std::memcpy(&vwap_ewma, &ubits, sizeof(vwap_ewma));
+            //std::memcpy(&ubits, body.data() + pos, 8);
+            //ubits = net_to_host_u64(ubits);
+            //pos += 8;
+
+            //double vwap_ewma;
+            //std::memcpy(&vwap_ewma, &ubits, sizeof(vwap_ewma));
+
 
             //delta_roll
             if (pos + 8 > body.size())
@@ -405,25 +408,28 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
             double delta_roll;
             std::memcpy(&delta_roll, &ubits, sizeof(delta_roll));
 
-            //delta_ewma
-            if (pos + 8 > body.size())
-            {
-                std::cout << "No delta_ewma\n";
-                return;
-            }
 
-            std::memcpy(&ubits, body.data() + pos, 8);
-            ubits = net_to_host_u64(ubits);
-            pos += 8;
+                // not used
+            ////delta_ewma
+            //if (pos + 8 > body.size())
+            //{
+            //    std::cout << "No delta_ewma\n";
+            //    return;
+            //}
 
-            double delta_ewma;
-            std::memcpy(&delta_ewma, &ubits, sizeof(delta_ewma));
+            //std::memcpy(&ubits, body.data() + pos, 8);
+            //ubits = net_to_host_u64(ubits);
+            //pos += 8;
+
+            //double delta_ewma;
+            //std::memcpy(&delta_ewma, &ubits, sizeof(delta_ewma));
 
 
             if (m_show_log_msg)
             {
-                printf("\nWHALE ALERT! [%s] %s: total = %.2f price = %.2f qty = %.2f VWAP = %.2f\n", symbol.data(), is_sell? "sell" : "buy",  price * quantity, price, quantity, vwap_sess);
-                //printf("\nWHALE ALERT: %s total_price=%.2f price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price * quantity, price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
+                //printf("\nWHALE ALERT! [%s] %s: total = %.2f price = %.2f qty = %.2f VWAP = %.2f\n", symbol.data(), is_sell? "sell" : "buy",  price * quantity, price, quantity, vwap_sess);
+                printf("\nWHALE ALERT! [%s] %s: total=%.2f price=%.2f qty==%.2f VWAP=%.2f VWAP_roll=%.2f delta_roll=%.2f \n", symbol.data(), is_sell ? "sell" : "buy", price * quantity, price, quantity, vwap_sess, vwap_roll50, delta_roll);
+                //printf("\nWHALE ALERT! [%s] %s: total=%.2f price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), is_sell ? "sell" : "buy", price * quantity, price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
             }
 
         }

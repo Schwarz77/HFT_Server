@@ -115,41 +115,64 @@ struct RollingVWAP {
     }
 };
 
-//const uint64_t EWMA_RESET_GAP = 2500;   // crypto trades - 2–5sec
-const uint64_t EWMA_RESET_GAP = 500;  // HFT: 100–500 ms
+////const uint64_t EWMA_RESET_GAP = 2500;   // crypto trades - 2–5sec
+//const uint64_t EWMA_RESET_GAP = 500;  // HFT: 100–500 ms
+//
+//struct EWMAVWAP {
+//    double vwap = 0.0;
+//    bool   init = false;
+//    uint64_t last_trade_ts = 0;
+//
+//    // alpha ~ 0.05–0.15 for whale
+//    inline void add(double price, double alpha, uint64_t ts) {
+//        if (!init) {
+//            vwap = price;
+//            init = true;
+//            last_trade_ts = ts;
+//        }
+//        else {
+//            if (ts - last_trade_ts > EWMA_RESET_GAP) {
+//                reset();
+//            }
+//            else {
+//                vwap = alpha * price + (1.0 - alpha) * vwap;
+//            }
+//            last_trade_ts = ts;
+//        }
+//    }
+//
+//    inline double value() const {
+//        return vwap;
+//    }
+//
+//    inline void reset() {
+//        init = false;
+//        vwap = 0.0;
+//    }
+//};
 
-struct EWMAVWAP {
-    double vwap = 0.0;
-    bool   init = false;
-    uint64_t last_trade_ts = 0;
+//constexpr double tau = 5.0; // seconds
+//
+//struct EWMAVWAP {
+//    double value = 0.0;
+//    uint64_t last_ts = 0;
+//
+//    inline void update(double price, uint64_t ts_ms)
+//    {
+//        if (last_ts == 0) {
+//            value = price;
+//            last_ts = ts_ms;
+//            return;
+//        }
+//
+//        double dt = (ts_ms - last_ts) * 0.001;
+//        last_ts = ts_ms;
+//        double alpha = 1.0 - std::exp(-dt / tau);
+//
+//        value += alpha * (price - value);
+//    }
+//};
 
-    // alpha ~ 0.05–0.15 for whale
-    inline void add(double price, double alpha, uint64_t ts) {
-        if (!init) {
-            vwap = price;
-            init = true;
-            last_trade_ts = ts;
-        }
-        else {
-            if (ts - last_trade_ts > EWMA_RESET_GAP) {
-                reset();
-            }
-            else {
-                vwap = alpha * price + (1.0 - alpha) * vwap;
-            }
-            last_trade_ts = ts;
-        }
-    }
-
-    inline double value() const {
-        return vwap;
-    }
-
-    inline void reset() {
-        init = false;
-        vwap = 0.0;
-    }
-};
 
 struct SessionVWAP {
     double pv = 0.0;
@@ -172,5 +195,6 @@ struct SessionVWAP {
 struct CoinAnalytics {
     SessionVWAP          session;
     RollingVWAP<50>      roll50;
-    EWMAVWAP             ewma;
+    //EWMAVWAP             ewma;
+    //double signed_flow = 0;
 };

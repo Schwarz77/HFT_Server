@@ -25,15 +25,13 @@ struct WhaleEvent {
     uint64_t timestamp;
     int index_symbol;
 
-    //double vwap_1m;
-    //double vwap_1d;
-    //double total_usd;
     double vwap_sess;
     double vwap_roll50;
     double vwap_ewma;
 
     float delta_roll;
-    float delta_ewma;
+    float reserve; //float delta_ewma; // not used
+    
 
     char pad[3];
 

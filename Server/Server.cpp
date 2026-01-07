@@ -692,19 +692,20 @@ void Server::hot_dispatcher()
             //if (need_reset_vwap.load())
             //{
             //    c.session.reset();
-            //    if (IsExtCalcVWAP())
-            //        c.ewma.reset();
+            //    c.signed_flow = 0;
+            ///    if (IsExtCalcVWAP())
+            ////        c.ewma.reset();
             //}
 
             c.session.add(ev.price, ev.quantity);
             if (ext_vwap)
             {
                 c.roll50.add(ev.price, ev.quantity);
-                c.ewma.add(ev.price, 0.05, ev.timestamp);
+                //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
+                //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
             }
 
-
-            if (pv >= whale_treshold[ev.index_symbol] ) [[unlikely]]
+            if (pv >= whale_treshold[ev.index_symbol]) [[unlikely]]
             {
                 WhaleEvent& we = bach_to_client[cnt_event_to_client++];
                 we.index_symbol = ev.index_symbol;
@@ -717,9 +718,9 @@ void Server::hot_dispatcher()
                 if (ext_vwap)
                 {
                     we.vwap_roll50 = c.roll50.value();
-                    we.vwap_ewma = c.ewma.value();
+                    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
                     we.delta_roll = ev.price - we.vwap_roll50;
-                    we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
+                    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
                 }
 
             }
