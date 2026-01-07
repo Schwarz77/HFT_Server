@@ -221,40 +221,24 @@ void Server::session_dispatcher()
 
 void Server::register_coins()
 {
-    //for (int i = 0; i < COIN_CNT; i++)
-    //{
-    //    m_reg_coin.register_coin(coin_data[i].symbol, i);
-    //}
-
-    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
-
     for (int i = 0; i < COIN_CNT; i++)
     {
-        m_mapCoinInd2Symbol[i] = coins[i].symbol;
-        m_mapCoinSymbol2Ind[coins[i].symbol] = i;
+        m_reg_coin.register_coin(coins[i].symbol, i);
     }
+
 }
 
-std::string Server::GetCoinSymbol(int index)
+std::string Server::GetCoinSymbol(int index) const
 {
-    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
-
-    auto it = m_mapCoinInd2Symbol.find(index);
-    if (it != m_mapCoinInd2Symbol.end())
-        return it->second;
+    if (index >= 0 && index < COIN_CNT)
+        return coins[index].symbol;
 
     return std::string();
 }
 
-int Server::GetCoinIndex(std::string& symbol)
+int Server::GetCoinIndex(std::string& symbol) const
 {
-    std::lock_guard<std::mutex> lk_symb(m_mtx_coin_symbol);
-
-    auto it = m_mapCoinSymbol2Ind.find(symbol);
-    if (it != m_mapCoinSymbol2Ind.end())
-        return it->second;
-
-    return -1;
+    return m_reg_coin.get_index_coin(symbol.data());
 }
 
 void Server::producer()
@@ -269,12 +253,6 @@ void Server::producer()
     {
         binance_stream();
 
-        //while (m_running)
-        //{
-        //    binance_stream();
-
-        //    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        //}
     }
 }
 
@@ -425,44 +403,19 @@ inline void Server::parse_single_event(simdjson::dom::element item)
 {
     MarketEvent event;
 
-    static uint64_t btc = symbol2u64("BTCUSDT");
-    static uint64_t eth = symbol2u64("ETHUSDT");
-    static uint64_t sol = symbol2u64("SOLUSDT");
-    static uint64_t bnb = symbol2u64("BNBUSDT");
-
-    // 's' - it's deal
+    
     std::string_view s;
-    if (item["s"].get(s) == simdjson::error_code::SUCCESS) {
+    if (item["s"].get(s) == simdjson::error_code::SUCCESS) // 's' - it's deal
+    {
         // Timestamp
         event.timestamp = item["E"].get_uint64();
 
         // Symbol
         size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
-        if (len < 16)
-        {
-            std::memcpy(event.symbol, s.data(), len);
-            event.symbol[len] = '\0';
-        }
-        else
-        {
-            int ddd = 0;
-        }
+        std::memcpy(event.symbol, s.data(), len);
+        event.symbol[len] = '\0';
 
-        ///// tmp
-        uint64_t s64 = symbol2u64(event.symbol);
-
-        if(s64 == btc)
-            event.index_symbol = 0;
-        else if (s64 == eth)
-            event.index_symbol = 1;
-        else if (s64 == sol)
-            event.index_symbol = 2;
-        else if (s64 == bnb)
-            event.index_symbol = 3;
-        else
-            event.index_symbol = -1; 
-        //////
-
+        event.index_symbol = m_reg_coin.get_index_coin(event.symbol);
 
         // Price & Quantity (строки в JSON -> double)
         std::string_view p_str = item["p"].get_string();
@@ -520,12 +473,10 @@ void Server::binance_stream()
 
     std::string url = "wss://fstream.binance.com/ws";
 
-    while (m_running) // RECONNECT LOOP
+    while (m_running)
     {
         ix::WebSocket ws;
         ws.setUrl(url);
-
-        //ws.disableAutomaticReconnection(); 
 
         std::atomic<uint64_t> ws_in_cnt{ 0 };
 
@@ -573,8 +524,7 @@ void Server::binance_stream()
 
                 case ix::WebSocketMessageType::Close:
                 {
-                    std::cerr << "\n[Binance] Closed by server\n";
-                    //ws.stop();
+                    //std::cerr << "\n[Binance] Closed by server\n";
                     return;
                 }
 
@@ -582,7 +532,6 @@ void Server::binance_stream()
                 {
                     std::cerr << "\n[Binance] Error: "
                         << msg->errorInfo.reason << "\n";
-                    //ws.stop();
                     return;
                 }
 
@@ -597,26 +546,41 @@ void Server::binance_stream()
         ws.start();
 
 
-        uint64_t last = 0;
+        uint64_t last_cnt = 0;
         while (m_running)
         {
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            /// pause without blocking shutdown 
+            uint64_t sleep_dur = 5000; //5s
+            uint64_t ts1 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-            uint64_t cur = ws_in_cnt.load();
-            if (cur == last)
+            while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - ts1 < sleep_dur) {
+                if (!m_running) {
+                    break;
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            ///
+
+
+            uint64_t cur_cnt = ws_in_cnt.load();
+            if (cur_cnt == last_cnt)
             {
                 //std::cerr << "\n[Binance] No data,  reconnect\n";
-                //ws.stop();
-                break;
+                  break;
             }
-            last = cur;
+            last_cnt = cur_cnt;
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        std::cerr << "\n[Binance] Reconnecting...\n";
+        if (m_running)
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::cerr << "\n[Binance] Reconnecting...\n";
 
-        // TODO: set flag to reset VWAP_session & VWAP_emwa
-        // ..
+            // TODO: set flag to reset VWAP_session
+            // ..
+        }
+
     }
 }
 

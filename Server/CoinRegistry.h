@@ -5,7 +5,6 @@
 struct CoinNode {
     uint64_t key = 0;
     int index = -1;  
-    std::string name;
 };
 
 class CoinRegistry {
@@ -17,9 +16,17 @@ public:
         std::memset(table, 0, sizeof(table));
     }
 
+    inline uint64_t symbol2u64(const char* s) const
+    {
+        uint64_t s64 = 0;
+        std::memcpy(&s64, s, std::min(std::strlen(s), (size_t)8));
+
+        return s64;
+
+    }
+
     void register_coin(const char* symbol, int idx) {
-        uint64_t s1 = 0;
-        std::memcpy(&s1, symbol, std::min(std::strlen(symbol), (size_t)8));
+        uint64_t s1 = symbol2u64(symbol);
 
         uint32_t slot = calculate_slot(s1);
 
@@ -34,7 +41,10 @@ public:
 
         table[slot].key = s1;
         table[slot].index = idx;
-        table[slot].name = symbol;
+    }
+
+    inline int get_index_coin(const char* symbol) const {
+        return get_index_fast(symbol2u64(symbol));
     }
 
     inline int get_index_fast(uint64_t s1) const {
@@ -47,18 +57,6 @@ public:
             slot = (slot + 1) & MASK;
         }
         return -1;
-    }
-
-    inline std::string get_name_fast(uint64_t s1) const {
-        uint32_t slot = calculate_slot(s1);
-
-        while (table[slot].key != 0) {
-            if (table[slot].key == s1) [[likely]] {
-                return table[slot].name;
-            }
-            slot = (slot + 1) & MASK;
-        }
-        return std::string();
     }
 
 private:

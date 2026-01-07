@@ -71,9 +71,8 @@ public:
 
     boost::asio::io_context& GetIoContext() { return m_io; }
 
-    //CoinRegistry& GetCoinRegistry() { return m_reg_coin; }
-    std::string GetCoinSymbol(int index);
-    int GetCoinIndex(std::string& symbol);
+    std::string GetCoinSymbol(int index) const;
+    int GetCoinIndex(std::string& symbol) const;
 
 private:
     void do_accept();
@@ -92,13 +91,6 @@ private:
 
     void register_coins();
 
-    inline uint64_t symbol2u64(const char* s)
-    {
-        uint64_t v = 0;
-        std::memcpy(&v, s, 8);
-        return v;
-    }
-
 protected:
 
     boost::asio::io_context& m_io;
@@ -110,7 +102,7 @@ protected:
     RingBuffer<MarketEvent, BUFFER_SIZE>  m_hot_buffer;
     RingBuffer<WhaleEvent, COLD_BUFFER_SIZE> m_event_buffer;
 
-    //CoinRegistry m_reg_coin;
+    CoinRegistry m_reg_coin;
 
      std::atomic<bool> m_running{ true };
 
@@ -125,9 +117,5 @@ protected:
     std::atomic<bool> m_show_log_msg{ true };
 
     std::atomic<bool> m_need_update_clients{ false };
-
-    std::mutex m_mtx_coin_symbol;
-    std::unordered_map<int, std::string> m_mapCoinInd2Symbol;
-    std::unordered_map<std::string, int> m_mapCoinSymbol2Ind;
 
 };

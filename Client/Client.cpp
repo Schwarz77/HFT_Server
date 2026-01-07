@@ -13,7 +13,7 @@ using tcp = asio::ip::tcp;
 using error_code = boost::system::error_code;
 
 
-Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol, double treshold)
+Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol)
     : m_io(io),
     m_socket(io),
     m_resolver(io),
@@ -21,9 +21,7 @@ Client::Client(asio::io_context& io, const std::string& host, uint16_t port, EPr
     m_host(host),
     m_port(port),
     m_data_type(signal_type),
-    m_coin_symbol(coin_symbol), 
-    m_treshold(treshold)
-
+    m_coin_symbol(coin_symbol)
 {
 }
 
@@ -38,7 +36,7 @@ void Client::Start()
     connect();
 
     if(m_show_log_msg)
-        std::cout << "Client started\n";
+        std::cout << "Client started [" << m_coin_symbol << "]" << std::endl;
 }
 
 void Client::Stop()
@@ -54,13 +52,6 @@ void Client::Stop()
         m_socket.close(ec);
     }
 }
-
-//MapSignal Client::GeSignals()
-//{
-//    std::lock_guard<std::mutex> lock(m_mtx_signal);
-//
-//    return m_map_signal;
-//}
 
 void Client::connect()
 {
@@ -427,8 +418,10 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
 
             if (m_show_log_msg)
             {
-                printf("\nWHALE ALERT! [%s] %s: total = %.2f price = %.2f qty = %.2f VWAP = %.2f\n", symbol.data(), is_sell? "sell" : "buy",  price * quantity, price, quantity, vwap_sess);
-                //printf("\nWHALE ALERT! [%s] %s: total=%.2f price=%.2f qty==%.2f VWAP=%.2f VWAP_roll=%.2f delta_roll=%.2f \n", symbol.data(), is_sell ? "sell" : "buy", price * quantity, price, quantity, vwap_sess, vwap_roll50, delta_roll);
+                if(m_ext_vwap)
+                    printf("\nWHALE ALERT! [%s] %s: total=%.2f price=%.2f qty==%.2f VWAP=%.2f VWAP_roll=%.2f delta_roll=%.2f \n", symbol.data(), is_sell ? "sell" : "buy", price * quantity, price, quantity, vwap_sess, vwap_roll50, delta_roll);
+                else
+                    printf("\nWHALE ALERT! [%s] %s: total = %.2f price = %.2f qty = %.2f VWAP = %.2f\n", symbol.data(), is_sell? "sell" : "buy",  price * quantity, price, quantity, vwap_sess);
             }
 
         }
@@ -470,10 +463,4 @@ void Client::schedule_reconnect()
 void Client::clear_data()
 {
     m_cnt_packet = 0;
-
-    //{
-    //    std::lock_guard<std::mutex> lock(m_mtx_signal);
-
-    //    m_map_signal.clear();
-    //}
 }

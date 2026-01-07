@@ -11,7 +11,7 @@
 class Client
 {
 public:
-    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol, double treshold);
+    Client(boost::asio::io_context& io, const std::string& host, uint16_t port, EProtocolDataType signal_type, std::string& coin_symbol);
     virtual ~Client();
 
     // disable copying
@@ -23,6 +23,8 @@ public:
 
     void EnableShowLogMsg(bool is_enable) { m_show_log_msg = is_enable; }
     bool IsShowLogMsg() { return m_show_log_msg; }
+    void SetExtVwap(bool ext) { m_ext_vwap = ext; }
+    void SetWhaleTreshold(double treshold) { m_treshold = treshold; }
 
     //MapSignal GeSignals();
     uint64_t GetPacketCount() { return m_cnt_packet; }
@@ -48,7 +50,7 @@ protected:
     EProtocolDataType m_data_type;
     
     std::string m_coin_symbol;
-    double m_treshold;
+    double m_treshold = 100'000;
 
     // inbound buffers/state
     SProtocolHeader m_header;
@@ -56,9 +58,7 @@ protected:
 
     std::atomic<uint64_t> m_cnt_packet{0};
 
-    //std::mutex m_mtx_signal;
-    //MapSignal m_map_signal;
-
     std::atomic<bool> m_show_log_msg{ true };
+    bool m_ext_vwap{ false };
 };
 

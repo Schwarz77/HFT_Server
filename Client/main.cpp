@@ -10,8 +10,8 @@ int main(int argc, char* argv[])
         uint16_t port = 6000;
 
         std::string symbol("BTCUSDT");
-
-        double treshold = 105000.0;
+        double treshold = 100'000;
+        bool ext_vwap = false;
 
         EProtocolDataType reqType = EProtocolDataType::Whale | EProtocolDataType::VWAP;
 
@@ -30,14 +30,22 @@ int main(int argc, char* argv[])
         if (argc >= 6)
             treshold = std::atof(argv[5]);
 
+        if (argc >= 7)
+            ext_vwap = static_cast<bool>(std::atoi(argv[6]));
 
         boost::asio::io_context io;
 
-        Client client(io, host, port, reqType, symbol, treshold);
+        Client client(io, host, port, reqType, symbol);
+
+        client.SetWhaleTreshold(treshold);
+        client.SetExtVwap(ext_vwap);
+
 
         client.Start();
 
+
         io.run();
+
     }
     catch (std::exception& e)
     {
