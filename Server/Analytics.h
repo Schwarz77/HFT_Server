@@ -115,18 +115,29 @@ struct RollingVWAP {
     }
 };
 
+//const uint64_t EWMA_RESET_GAP = 2500;   // crypto trades - 2Ц5sec
+const uint64_t EWMA_RESET_GAP = 500;  // HFT: 100Ц500 ms
+
 struct EWMAVWAP {
     double vwap = 0.0;
     bool   init = false;
+    uint64_t last_trade_ts = 0;
 
-    // alpha ~ 0.05Ц0.15 дл€ whale
-    inline void add(double price, double alpha) {
+    // alpha ~ 0.05Ц0.15 for whale
+    inline void add(double price, double alpha, uint64_t ts) {
         if (!init) {
             vwap = price;
             init = true;
+            last_trade_ts = ts;
         }
         else {
-            vwap = alpha * price + (1.0 - alpha) * vwap;
+            if (ts - last_trade_ts > EWMA_RESET_GAP) {
+                reset();
+            }
+            else {
+                vwap = alpha * price + (1.0 - alpha) * vwap;
+            }
+            last_trade_ts = ts;
         }
     }
 

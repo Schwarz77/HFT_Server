@@ -53,19 +53,6 @@ Server::Server(asio::io_context& io, uint16_t port)
 
     register_coins();
 
-    m_session_dispatcher = std::thread(&Server::session_dispatcher, this);
-    //m_producer = std::thread(&Server::producer_loop, this);
-    m_hot_dispatcher = std::thread(&Server::hot_dispatcher, this);
-    m_event_dispatcher = std::thread(&Server::event_dispatcher, this);
-    m_monitor = std::thread(&Server::speed_monitor, this);
-    m_producer = std::thread(&Server::producer_loop, this);
-
-    set_affinity(m_producer, 0);
-    //set_affinity(m_session_dispatcher, 2);
-    set_affinity(m_hot_dispatcher, 2);
-    set_affinity(m_event_dispatcher, 4);
-    set_affinity(m_monitor, 5);  // tail to 3 core
-
 }
 
 Server::~Server() 
@@ -75,6 +62,19 @@ Server::~Server()
 
 void Server::Start() 
 {
+    m_session_dispatcher = std::thread(&Server::session_dispatcher, this);
+    //m_producer = std::thread(&Server::producer_loop, this);
+    m_hot_dispatcher = std::thread(&Server::hot_dispatcher, this);
+    m_event_dispatcher = std::thread(&Server::event_dispatcher, this);
+    m_monitor = std::thread(&Server::speed_monitor, this);
+    m_producer = std::thread(&Server::producer, this);
+
+    set_affinity(m_producer, 0);
+    //set_affinity(m_session_dispatcher, 2);
+    set_affinity(m_hot_dispatcher, 2);
+    set_affinity(m_event_dispatcher, 4);
+    set_affinity(m_monitor, 5);  // tail to 3 core
+    
     do_accept();
 
     if (m_show_log_msg)
@@ -125,9 +125,6 @@ void Server::Stop()
 {
     m_running = false;
 
-    // wake dispatcher
-    m_cv_queue.notify_all();
-
     // close acceptor
     error_code ec;
 
@@ -166,49 +163,11 @@ void Server::Stop()
         m_event_dispatcher.join();
     }
 
-    // just in case - for guaranteed absence of leaks
     clear_sessions(); 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 }
 
-//void Server::SetSignals(const VecSignal signals)
-//{
-//    asio::post(m_io, [this, signals]()
-//        {
-//            // Closing all client connections so that clients can reconnect and receive the changed count of signals.
-//
-//            std::lock_guard<std::mutex> lk(m_mtx_subscribers);
-//
-//            for (auto it = m_subscribers.begin(); it != m_subscribers.end();)
-//            {
-//                if (auto sp = it->lock())
-//                {
-//                    sp->ForceClose();
-//                    ++it;
-//                }
-//                else
-//                {
-//                    it = m_subscribers.erase(it);
-//                }
-//            }
-//
-//            // set signals
-//
-//            {
-//                std::lock_guard<std::mutex> lk(m_mtx_state);
-//
-//                m_state.clear();
-//
-//                auto now = steady_clock::now();
-//
-//                for (auto s : signals)
-//                {
-//                    m_state[s.id] = s;
-//                }
-//            }
-//        });
-//}
 
 void Server::RegisterSession(std::shared_ptr<Session> s) 
 {
@@ -247,63 +206,6 @@ void Server::UnregisterExpired()
     }
 }
 
-//bool Server::PushSignal(const Signal& s) 
-//{
-//    bool pushed = false;
-//
-//    {
-//        std::lock_guard<std::mutex> lk_state(m_mtx_state);
-//
-//        auto it = m_state.find(s.id);
-//
-//        if (it != m_state.end() && s.ts >= it->second.ts)
-//        {
-//            m_state[s.id] = s;
-//            pushed = true;
-//        }
-//    }
-//
-//    if (pushed)
-//    {
-//        {
-//            std::lock_guard<std::mutex> lk_queue(m_mtx_queue);
-//            m_queue.push_back(s);
-//        }
-//        m_cv_queue.notify_one();
-//    }
-//
-//    return pushed;
-//}
-//
-//bool Server::GetSignal(int id, Signal& s)
-//{
-//    std::lock_guard<std::mutex> lk(m_mtx_state);
-//
-//    auto it = m_state.find(id);
-//    if (it != m_state.end())
-//    {
-//        s = it->second;
-//        return true;
-//    }
-//
-//    return false;
-//}
-//
-//VecSignal Server::GetSnapshot(uint8_t type) 
-//{
-//    VecSignal out;
-//    std::lock_guard<std::mutex> lk(m_mtx_state);
-//
-//    for (auto& p : m_state)
-//    {
-//        if ((uint8_t)p.second.type & type)
-//        {
-//            out.push_back(p.second);
-//        }
-//    }
-//
-//    return out;
-//}
 
 void Server::session_dispatcher() 
 {
@@ -312,44 +214,6 @@ void Server::session_dispatcher()
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         UnregisterExpired();
-
-        ////VecSignal batch;
-
-        ////{
-        ////    std::unique_lock<std::mutex> lk(m_mtx_queue);
-
-        ////    m_cv_queue.wait(lk, [&] 
-        ////        {
-        ////            return !m_queue.empty() || !m_running; 
-        ////        });
-
-        ////    while (!m_queue.empty()) 
-        ////    {
-        ////        batch.push_back(m_queue.front()); 
-        ////        m_queue.pop_front(); 
-        ////    }
-        ////}
-
-        ////if (!batch.empty()) 
-        //{
-        //    // delivery: broadcast to subscribers
-        //    std::lock_guard<std::mutex> lk(m_mtx_subscribers);
-
-        //    for (auto it = m_subscribers.begin(); it != m_subscribers.end();) 
-        //    {
-        //        if ((*it)->Expired())
-        //        {
-        //            //sp->DeliverUpdates(batch);
-        //            ++it;
-        //        }
-        //        else
-        //        {
-        //            it = m_subscribers.erase(it);
-        //        }
-        //    }
-        //}
-
-        //m_need_update_clients.store(true, std::memory_order_release);
 
     }
 }
@@ -395,10 +259,29 @@ int Server::GetCoinIndex(std::string& symbol)
     return -1;
 }
 
-void Server::producer_loop()
+void Server::producer()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 0);
 
+    if (m_data_emulation.load(std::memory_order_acquire))
+    {
+        emulator_loop();
+    }
+    else
+    {
+        binance_stream();
+
+        //while (m_running)
+        //{
+        //    binance_stream();
+
+        //    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        //}
+    }
+}
+
+void Server::emulator_loop()
+{
     const size_t size_batch = 64;
     std::vector<MarketEvent> batch(size_batch);
 
@@ -503,37 +386,15 @@ void Server::speed_monitor()
         double seconds = duration.count();
 
         double speed = delta / seconds;
-        double m_eps;
-        if (speed >= 1'000'000.0)
-        {
-            m_eps = speed / 1'000'000.0; // Million per sec
 
-            std::cout << "\r"
-                << "Throughput: " << std::fixed << std::setprecision(2) << m_eps << " Million event/sec | "
-                << "Total: " << current_head / 1'000'000 << "M events"
-                << std::flush;
-        }
-        else if (speed >= 1'000.0)
-        {
-            m_eps = speed / 1'000.0; // Thousand per sec
+        double eps = (speed >= 1e6) ? speed / 1e6 : (speed >= 1e3) ? speed / 1e3 : speed;
+        double total = (current_head >= 1e6) ? current_head / 1e6 : (current_head >= 1e3) ? current_head / 1e3 : current_head;
+        std::string mul = (speed >= 1e6) ? " M" : (speed >= 1e3) ? " K" : "";
 
-            std::cout << "\r" 
-                << "Throughput: " << std::fixed << std::setprecision(2) << m_eps << " Thousand event/sec | "
-                << "Total: " << current_head / 1'000 << "K events"
-                << std::flush;
-        }
-        else
-        {
-            m_eps = speed; 
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
 
-            std::cout << "\r"
-                << "Throughput: " << std::fixed << std::setprecision(2) << m_eps << " event/sec | "
-                << "Total: " << current_head << "events"
-                << std::flush;
-        }
-
-        //auto lag = m_hot_buffer.get_head() - last_reader_idx;
-        //double lag_percent = (static_cast<double>(lag) / global_rb.capacity()) * 100.0;
+        std::cout << "\r" << "Throughput: " << std::left << std::setw(50) << ss.view() /*ss.str()*/ << std::flush;
 
         last_head = current_head;
         last_time = current_time;
@@ -564,8 +425,21 @@ void Server::clear_sessions()
 
 ////
 
-inline void Server::parse_single_event(simdjson::dom::element item) {
-    MarketEvent event{};
+static inline uint64_t symbol_u64(const char* s)
+{
+    uint64_t v = 0;
+    std::memcpy(&v, s, 8);
+    return v;
+}
+
+inline void Server::parse_single_event(simdjson::dom::element item) 
+{
+    MarketEvent event;
+
+    static uint64_t btc = symbol_u64("BTCUSDT");
+    static uint64_t eth = symbol_u64("ETHUSDT");
+    static uint64_t sol = symbol_u64("SOLUSDT");
+    static uint64_t bnb = symbol_u64("BNBUSDT");
 
     // 's' - it's deal
     std::string_view s;
@@ -575,8 +449,31 @@ inline void Server::parse_single_event(simdjson::dom::element item) {
 
         // Symbol
         size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
-        std::memcpy(event.symbol, s.data(), len);
-        event.symbol[len] = '\0';
+        if (len < 16)
+        {
+            std::memcpy(event.symbol, s.data(), len);
+            event.symbol[len] = '\0';
+        }
+        else
+        {
+            int ddd = 0;
+        }
+
+        ///// tmp
+        uint64_t s64 = symbol_u64(event.symbol);
+
+        if(s64 == btc)
+            event.index_symbol = 0;
+        else if (s64 == eth)
+            event.index_symbol = 1;
+        else if (s64 == sol)
+            event.index_symbol = 2;
+        else if (s64 == bnb)
+            event.index_symbol = 3;
+        else
+            event.index_symbol = 0; 
+        //////
+
 
         // Price & Quantity (строки в JSON -> double)
         std::string_view p_str = item["p"].get_string();
@@ -589,7 +486,11 @@ inline void Server::parse_single_event(simdjson::dom::element item) {
         event.is_sell = item["m"].get_bool();
 
         if (event.timestamp > 0) {
-            //m_hot_buffer.push(event);
+            m_hot_buffer.push_batch(&event, 1);
+        }
+        else
+        {
+            int ddd = 0;
         }
     }
 }
@@ -624,80 +525,110 @@ void Server::process_market_msg(const ix::WebSocketMessagePtr& msg) {
     }
 }
 
-void Server::binance_stream() {
+void Server::binance_stream()
+{
     ix::initNetSystem();
-
-    static ix::WebSocket webSocket;
-    //std::string url = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade";
-    //std::string url = "wss://stream.binance.com:9443/ws/!ticker@arr";
-    //std::string url = "wss://stream.binance.com:9443/ws/!aggTrade@arr";
-    //std::string url = "wss://stream.binance.com:9443/stream?streams=!aggTrade@arr";
-    //std::string url = "wss://stream.binance.com:9443/stream?streams=%21aggTrade@arr";
 
     std::string url = "wss://fstream.binance.com/ws";
 
+    while (m_running) // RECONNECT LOOP
+    {
+        ix::WebSocket ws;
+        ws.setUrl(url);
 
-    webSocket.setUrl(url);
+        //ws.disableAutomaticReconnection(); 
 
-    webSocket.enablePerMessageDeflate();
+        std::atomic<uint64_t> ws_in_cnt{ 0 };
 
-    static thread_local simdjson::ondemand::parser parser;
-
-    static std::atomic<int> cnt = 0, cnt2 = 0;
-
-    webSocket.setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg) {
-        if (msg->type == ix::WebSocketMessageType::Open) {
-            std::cout << "[Main] Connection opened!" << std::endl;
-            //     webSocket.send(R"({"method":"SUBSCRIBE","params":["!aggTrade@arr"],"id":1})");
-                 //webSocket.send(R"({"method":"SUBSCRIBE","params":["!aggTrade@arr","btcusdt@aggTrade"],"id":1})");
-             //    std::string sub = R"({
-             //    "method": "SUBSCRIBE",
-             //    "params": [
-             //        "btcusdt@aggTrade", "ethusdt@aggTrade", "solusdt@aggTrade", 
-             //        "dogeusdt@aggTrade", "xrpusdt@aggTrade", "adausdt@aggTrade",
-             //        "linkusdt@aggTrade", "trxusdt@aggTrade", "dotusdt@aggTrade",
-             //        "nearusdt@aggTrade", "pepeusdt@aggTrade", "bnbusdt@aggTrade"
-             //    ],
-             //    "id": 1
-             //})";
-
-             //    std::string sub = R"({
-             //    "method": "SUBSCRIBE",
-             //    "params": [
-             //                "btcusdt@trade",
-             //                "ethusdt@trade",
-             //                "bnbusdt@trade",
-             //                "btcusdt@depth",
-             //                "ethusdt@depth",
-             //                "bnbusdt@depth"
-             //    ],
-             //    "id": 1
-             //})";
-
-            std::string sub = R"({"method": "SUBSCRIBE", "params": ["!bookTicker"], "id": 1})";
-
-            webSocket.send(sub);
-        }
-        else if (msg->type == ix::WebSocketMessageType::Message) {
-            process_market_msg(msg);
-
-            if (cnt - cnt2 > 100)
+        ws.setOnMessageCallback(
+            [&](const ix::WebSocketMessagePtr& msg)
             {
-                std::cout << "\ncnt: " << cnt.load() << std::endl;
-                //printf("Cnt: %d\n", cnt.load());
-                cnt2.store(cnt.load(), std::memory_order_relaxed);
+                switch (msg->type)
+                {
+                case ix::WebSocketMessageType::Open:
+                {
+                    std::cout << "\n[Binance] Connected\n";
+
+                    std::string sub = R"({
+                        "method": "SUBSCRIBE",
+                        "params": [
+                            "btcusdt@trade",
+                            "ethusdt@trade",
+                            "solusdt@trade",
+                            "bnbusdt@trade"
+                        ],
+                        "id": 1
+                    })";
+
+                    ws.send(sub);
+                    break;
+                }
+
+                case ix::WebSocketMessageType::Message:
+                {
+                    ws_in_cnt.fetch_add(1, std::memory_order_relaxed);
+
+                    process_market_msg(msg);
+
+                    break;
+                }
+
+                case ix::WebSocketMessageType::Ping:
+                {
+                    //ws.pong(msg->str);
+                    break;
+                }
+
+                case ix::WebSocketMessageType::Pong:
+                    break;
+
+                case ix::WebSocketMessageType::Close:
+                {
+                    std::cerr << "\n[Binance] Closed by server\n";
+                    //ws.stop();
+                    return;
+                }
+
+                case ix::WebSocketMessageType::Error:
+                {
+                    std::cerr << "\n[Binance] Error: "
+                        << msg->errorInfo.reason << "\n";
+                    //ws.stop();
+                    return;
+                }
+
+                default:
+                    break;
+                }
+            });
+
+
+        ws.setPingInterval(15);
+
+        ws.start();
+
+
+        uint64_t last = 0;
+        while (m_running)
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+
+            uint64_t cur = ws_in_cnt.load();
+            if (cur == last)
+            {
+                //std::cerr << "\n[Binance] No data,  reconnect\n";
+                //ws.stop();
+                break;
             }
-            cnt++;
-
+            last = cur;
         }
-        //else if (msg->type == ix::WebSocketMessageType::Error) {
-        //    std::cerr << std::endl << "Error: " << msg->errorInfo.reason << std::endl;
-        //}
-        });
 
-    webSocket.setPingInterval(30);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cerr << "\n[Binance] Reconnecting...\n";
 
-    webSocket.start();
+        // TODO: set flag to reset VWAP_session & VWAP_emwa
+        // ..
+    }
 }
 
 
@@ -709,21 +640,13 @@ void Server::hot_dispatcher()
     const int threshold_test = 5000;
 
     int empty_cycles = 0;
-
     uint64_t iter_count = 0;
-
     uint64_t total_dropped = 0;
-
-    //std::memset(coin_VWAP, 0, sizeof(CoinVWAP) * COIN_CNT);
-
-    //double b_pv[COIN_CNT];
-    //double b_v[COIN_CNT];
-    //SecAgg  sec_aggs[COIN_CNT][MAX_SEC_IN_BATCH];
-    //uint8_t sec_cnt[COIN_CNT];
-
 
     std::vector<WhaleEvent> bach_to_client(1024);
     uint64_t cnt_event_to_client = 0;
+
+    bool ext_vwap = m_ext_vwap.load(std::memory_order::acquire);
 
     while (m_running) {
         uint64_t h = m_hot_buffer.get_head();
@@ -749,10 +672,6 @@ void Server::hot_dispatcher()
         //size_t to_process = std::min<size_t>(h - reader_idx, 1024);
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
     
-        //std::memset(b_pv, 0, 8 * COIN_CNT);
-        //std::memset(b_v, 0, 8 * COIN_CNT);
-        //std::memset(sec_aggs, 0, sizeof(SecAgg) * COIN_CNT * MAX_SEC_IN_BATCH);
-        //std::memset(sec_cnt, 0, sizeof(uint8_t) * COIN_CNT);
 
         uint64_t first_sec = 0;
         uint64_t last_sec = 0;
@@ -765,20 +684,25 @@ void Server::hot_dispatcher()
                 continue;
 
             double pv = ev.total_usd();
-            //b_pv[ev.index_symbol] += pv;
-            //b_v[ev.index_symbol] += ev.quantity;
 
             uint64_t sec = ev.timestamp / 1000;
 
-            //if(i == 0)
-            //    first_sec = sec;
-            //last_sec = sec;
-
             auto& c = coin_VWAP[ev.index_symbol];
 
+            //if (need_reset_vwap.load())
+            //{
+            //    c.session.reset();
+            //    if (IsExtCalcVWAP())
+            //        c.ewma.reset();
+            //}
+
             c.session.add(ev.price, ev.quantity);
-            c.roll50.add(ev.price, ev.quantity);
-            c.ewma.add(ev.price, 0.05);
+            if (ext_vwap)
+            {
+                c.roll50.add(ev.price, ev.quantity);
+                c.ewma.add(ev.price, 0.05, ev.timestamp);
+            }
+
 
             if (pv >= whale_treshold[ev.index_symbol] ) [[unlikely]]
             {
@@ -787,57 +711,21 @@ void Server::hot_dispatcher()
                 we.price = ev.price;
                 we.quantity = ev.quantity;
                 we.timestamp = ev.timestamp;
-                //we.is_sell = ev.is_sell;  //?
+                we.is_sell = ev.is_sell;
                 we.vwap_sess = c.session.value();
-                we.vwap_roll50 = c.roll50.value();
-                we.vwap_ewma = c.ewma.value();
 
-                we.delta_roll = ev.price - we.vwap_roll50;
-                we.delta_ewma = ev.price - we.vwap_ewma;
-
-                //we.vwap_1m = vwap_1m(coin_VWAP[ev.index_symbol]);
-                //we.vwap_1d = vwap_1d(coin_VWAP[ev.index_symbol]);
-
+                if (ext_vwap)
+                {
+                    we.vwap_roll50 = c.roll50.value();
+                    we.vwap_ewma = c.ewma.value();
+                    we.delta_roll = ev.price - we.vwap_roll50;
+                    we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
+                }
 
             }
 
-            //// slow path accumulation
-            //uint8_t& cnt = sec_cnt[ev.index_symbol];
-            //if (cnt == 0 || sec_aggs[ev.index_symbol][cnt - 1].sec != sec) {
-            //    if (cnt < MAX_SEC_IN_BATCH) {
-            //        sec_aggs[ev.index_symbol][cnt++] = { sec, 0.0, 0.0 };
-            //    }
-            //    else
-            //    {
-            //        // overflow
-            //        int ddd = 0;
-            //     }
-            //}
         }
 
-        //if (first_sec == last_sec) [[likely]]
-        //{
-        //    for (int s = 0; s < COIN_CNT; ++s)
-        //    {
-        //        if (b_v[s] > 0.0) {
-        //            apply_batch(coin_VWAP[s], b_pv[s], b_v[s], first_sec);
-        //        }
-        //    }
-        //}
-        //else [[unlikely]]
-        //{
-        //    for (int s = 0; s < COIN_CNT; ++s)
-        //    {
-        //        for (uint8_t i = 0; i < sec_cnt[s]; ++i) {
-        //            apply_batch(
-        //                coin_VWAP[s],
-        //                sec_aggs[s][i].pv,
-        //                sec_aggs[s][i].v,
-        //                sec_aggs[s][i].sec
-        //            );
-        //        }
-        //    }
-        //}
 
         //write events
         m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);

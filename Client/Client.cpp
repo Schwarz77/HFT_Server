@@ -422,7 +422,8 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
 
             if (m_show_log_msg)
             {
-                printf("\nWHALE ALERT: %s total_price=%.2f price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price * quantity, price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
+                printf("\nWHALE ALERT! [%s] %s: total = %.2f price = %.2f qty = %.2f VWAP = %.2f\n", symbol.data(), is_sell? "sell" : "buy",  price * quantity, price, quantity, vwap_sess);
+                //printf("\nWHALE ALERT: %s total_price=%.2f price=%.2f quantity==%.2f VWAP_session=%.2f VWAP_roll=%.2f VWAP_EMWA=%.2f delta_roll=%.2f delta_EMWA=%.2f \n", symbol.data(), price * quantity, price, quantity, vwap_sess, vwap_roll50, vwap_ewma, delta_roll, delta_ewma);
             }
 
         }
