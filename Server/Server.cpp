@@ -410,12 +410,21 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         // Timestamp
         event.timestamp = item["E"].get_uint64();
 
-        // Symbol
-        size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
-        std::memcpy(event.symbol, s.data(), len);
-        event.symbol[len] = '\0';
+             // not used
+        //// Symbol
+        //size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
+        //std::memcpy(event.symbol, s.data(), len);
+        //event.symbol[len] = '\0';
 
-        event.index_symbol = m_reg_coin.get_index_coin(event.symbol);
+        event.index_symbol = m_reg_coin.get_index_coin(s.data());
+        if (event.index_symbol == -1)
+        {
+            ////  ooops.. new uregistered coin..
+            //// need register and add it to storage (coins)
+            //
+            ////m_reg_coin.register_coin(s.data(), COIN_CNT);
+            //// TODO: set size coins = COIN_CNT + 1  
+        }
 
         // Price & Quantity (строки в JSON -> double)
         std::string_view p_str = item["p"].get_string();
@@ -427,12 +436,9 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         // Side
         event.is_sell = item["m"].get_bool();
 
-        if (event.timestamp > 0) {
-            m_hot_buffer.push_batch(&event, 1);
-        }
-        else
+        if (event.timestamp > 0) 
         {
-            int ddd = 0;
+            m_hot_buffer.push_batch(&event, 1);
         }
     }
 }

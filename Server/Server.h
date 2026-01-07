@@ -18,7 +18,6 @@
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 
-//constexpr size_t BUFFER_SIZE = 1 << 20;
 constexpr size_t BUFFER_SIZE = 8 * 1024 * 1024;
 constexpr size_t COLD_BUFFER_SIZE = 2 * 1024 * 1024;
 
@@ -29,8 +28,8 @@ struct MarketEvent {
     double quantity;
     bool is_sell;
     uint64_t timestamp;
-    char symbol[16];
-    int index_symbol; //to index
+    char reserved[16]; //char symbol[16]; // not used
+    int index_symbol;
     uint64_t symbol_hash;
 
     char pad[11];
@@ -85,7 +84,6 @@ private:
     void hot_dispatcher();
     void event_dispatcher();
     void speed_monitor();
-    //void client_update_timer();
     void parse_single_event(simdjson::dom::element item);
     void process_market_msg(const ix::WebSocketMessagePtr& msg);
 
