@@ -186,16 +186,13 @@ void Server::UnregisterExpired()
     {
         std::lock_guard<std::mutex> lk(m_mtx_subscribers);
 
-        m_subscribers.erase(std::remove_if(m_subscribers.begin(), m_subscribers.end(),
-            [&is_changed](const std::shared_ptr<Session>& s)
-            {
-                if (s->Expired()) {
-                    is_changed = true;
-                    return true;
-                }
-                return false;
-            }),
-            m_subscribers.end());
+        size_t removed_count = std::erase_if(m_subscribers, [](const auto& s) {
+            return s->Expired();
+            });
+
+        if (removed_count > 0) {
+            is_changed = true;
+        }
     }
 
     if (is_changed)
@@ -723,7 +720,8 @@ void Server::event_dispatcher()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
 
-    std::vector<Session*> clients;
+    std::vector<std::shared_ptr<Session>> clients_shared; // for hold
+    std::vector<Session*> clients_row[COIN_CNT]; // for fast send
 
     uint64_t iter_count = 0;
 
@@ -752,20 +750,36 @@ void Server::event_dispatcher()
             continue;
         }
 
-        //// update local_clients 
+        // update local_clients 
         if (m_need_update_clients.load(std::memory_order_acquire))
         {
             std::lock_guard<std::mutex> lock(m_mtx_subscribers);
             m_need_update_clients.store(false, std::memory_order_relaxed);
-            clients.clear();
-            clients.reserve(m_subscribers.size());
 
-            for (auto& sp : m_subscribers) {
-                {
-                    clients.push_back(sp.get());
+            const size_t rsrv_cnt = m_subscribers.size() + 50;
+
+            clients_shared.clear();
+            if (clients_shared.capacity() < rsrv_cnt)
+                clients_shared.reserve(rsrv_cnt);
+
+            for (int i = 0; i < COIN_CNT; i++)
+            {
+                clients_row[i].clear();
+                if (clients_row[i].capacity() < rsrv_cnt) {
+                    clients_row[i].reserve(rsrv_cnt);
                 }
             }
+
+            for (auto& sp : m_subscribers) {
+                clients_shared.push_back(sp);
+
+                Session* pSession = sp.get();
+                int ind = pSession->GetSymbolIndex();
+                if(ind >= 0 && ind < COIN_CNT)
+                    clients_row[ind].push_back(pSession);
+            }
         }
+        //
 
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
 
@@ -773,10 +787,17 @@ void Server::event_dispatcher()
         {
             const auto& ev = m_event_buffer.read(reader_idx++);
 
-            for (auto& pSession : clients)
+            for (auto& pSession : clients_row)
             {
-                if (ev.index_symbol == pSession->GetSymbolIndex() && ev.total_usd() >= pSession->GetWhaleTreshold())
-                    pSession->PushEvent(ev);
+                if (ev.index_symbol >= 0 && ev.index_symbol < COIN_CNT)
+                {
+                    auto& clients = clients_row[ev.index_symbol];
+                    for (auto pSession : clients)
+                    {
+                       if( ev.total_usd() >= pSession->GetWhaleTreshold())
+                           pSession->PushEvent(ev);
+                    }
+                }
             }
  
         }

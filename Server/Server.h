@@ -13,7 +13,6 @@
 #include <deque>
 #include <atomic>
 #include <random>
-#include <list>
 #include <simdjson.h>
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
@@ -95,7 +94,7 @@ protected:
     boost::asio::ip::tcp::acceptor m_acceptor;
 
     std::mutex m_mtx_subscribers;
-    std::list<std::shared_ptr<Session>> m_subscribers;
+    std::vector<std::shared_ptr<Session>> m_subscribers;
 
     RingBuffer<MarketEvent, BUFFER_SIZE>  m_hot_buffer;
     RingBuffer<WhaleEvent, COLD_BUFFER_SIZE> m_event_buffer;
