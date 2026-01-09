@@ -17,23 +17,36 @@ using steady_clock = std::chrono::steady_clock;
 //
 // 
         // it's global data. if move it to class member - speed will decrease slightly 
-   
+
+//
+const CoinPair coins[] =
+{
+    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
+};
+
+const size_t COIN_CNT = _countof(coins);
+
+double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
+
+CoinAnalytics coin_VWAP[COIN_CNT];
+//
+
 ////
 //constexpr size_t COIN_CNT = 4;
-//std::vector<CoinPair> coins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+//std::vector<CoinPair> coins = { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
 //std::vector<double> whale_global_treshold{ 100000, 70000, 50000, 60000 };
 //std::vector<CoinAnalytics> coin_VWAP(COIN_CNT);
 ////
 
-
-////
-const size_t COIN_CNT_GEN_DBG = 2048; 
-//size_t COIN_CNT = 0;
-constexpr size_t COIN_CNT = 4;
-std::vector<CoinPair> coins;
-std::vector<double> whale_global_treshold;
-std::vector<CoinAnalytics> coin_VWAP;
-////
+//
+//////
+//const size_t COIN_CNT_GEN_DBG = 2048; // coins count (will be created)
+////size_t COIN_CNT = 0;      // open it to work with pre_coin_list (like from ini-file)
+//constexpr size_t COIN_CNT = 4;
+//std::vector<CoinPair> coins;
+//std::vector<double> whale_global_treshold;
+//std::vector<CoinAnalytics> coin_VWAP;
+//////
 
 //
 //
@@ -74,7 +87,7 @@ void Server::Start()
     set_affinity(m_producer, 0);
     set_affinity(m_hot_dispatcher, 2);
     set_affinity(m_event_dispatcher, 4);
-    set_affinity(m_monitor, 5);  // tail to 3 core
+    set_affinity(m_monitor, 5);
     
     do_accept();
 
@@ -225,121 +238,121 @@ void Server::init_coin_data()
     std::call_once(m_coins_initialized, [this]() 
         {
 
-            ////
-            //coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //////
+            ////coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            ////coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
+
+            ////whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
+            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            ////coin_VWAP.resize(COIN_CNT);
+            ////coin_VWAP.shrink_to_fit();
+            //////
+
+
+            ////////////////////////////////////////////////////////////
+            ////// gen 4 coins (COIN_CNT must be const = 4)   // speed 137M at 4 coin & vwap_session
+            //const std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //coins.reserve(COIN_CNT);
+            //for (int i = 0; i < COIN_CNT; i++)
+            //    coins.push_back(vecCoins[i]);
             //coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
 
-            //whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
-            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            //coin_VWAP.resize(COIN_CNT);
-            //coin_VWAP.shrink_to_fit();
-            ////
-
-
-            //////////////////////////////////////////////////////////
-            //// gen 4 coins (COIN_CNT must be const = 4)   // speed 137M at 4 coin & vwap_session
-            const std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            coins.reserve(COIN_CNT);
-            for (int i = 0; i < COIN_CNT; i++)
-                coins.push_back(vecCoins[i]);
-            coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
-
-            std::vector<double> treshold{ 100000, 70000, 50000, 60000 };
-            whale_global_treshold.reserve(COIN_CNT);
-            for (auto d : treshold)
-                whale_global_treshold.push_back(d);
-            whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            coin_VWAP.reserve(COIN_CNT);
-            for (int i = 0; i < COIN_CNT; i++)
-            {
-                coin_VWAP.push_back(CoinAnalytics());
-            }
-            coin_VWAP.shrink_to_fit();
-            ////
-            //////////////////////////////////////////////////////////
-
-
-            ////////////////////////////////////////////////////////
-            ///// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
-            //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            //for (int i = 0; i < COIN_CNT_GEN_DBG - vecCoins.size(); i++)
-            //{
-            //    char name[16] = "";
-            //    sprintf(name, "B%d", i);
-            //    CoinPair cp;
-            //    strcpy(cp.symbol, name);
-            //    cp.price = 10000;
-            //    vecCoins.push_back(cp);
-
-            //}
-            //COIN_CNT = vecCoins.size();
-
-            //coins.reserve(COIN_CNT);
-            //for(int i=0; i< COIN_CNT; i++)
-            //    coins.push_back(vecCoins[i]);
-            //coins.shrink_to_fit(); // don't change size after it!
-            //
-            // 
+            //std::vector<double> treshold{ 100000, 70000, 50000, 60000 };
             //whale_global_treshold.reserve(COIN_CNT);
-            ////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
-            ////    whale_global_treshold.push_back(d);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //    whale_global_treshold.push_back(100'000);
+            //for (auto d : treshold)
+            //    whale_global_treshold.push_back(d);
             //whale_global_treshold.shrink_to_fit(); // don't change size after it!
 
             //coin_VWAP.reserve(COIN_CNT);
             //for (int i = 0; i < COIN_CNT; i++)
             //{
-            //    CoinAnalytics ca;
-            //    coin_VWAP.push_back(ca);
+            //    coin_VWAP.push_back(CoinAnalytics());
             //}
             //coin_VWAP.shrink_to_fit();
-            /////
-            ////////////////////////////////////////////////////////
+            //////
+            ////////////////////////////////////////////////////////////
 
 
+            //////////////////////////////////////////////////////////
+            /////// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
+            ////std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            ////for (int i = 0; i < COIN_CNT_GEN_DBG - vecCoins.size(); i++)
+            ////{
+            ////    char name[16] = "";
+            ////    sprintf(name, "B%d", i);
+            ////    CoinPair cp;
+            ////    strcpy(cp.symbol, name);
+            ////    cp.price = 10000;
+            ////    vecCoins.push_back(cp);
 
-
-
-            //// old
-            //    // speed does not decrease if do this:
-            //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            //int sz_src = vecCoins.size();
-            //for (int i = 0; i < COIN_CNT - sz_src; i++)
-            //{
-            //    char name[16] = "";
-            //    sprintf(name, "BTC%d", i);
-            //    CoinPair cp;
-            //    strcpy(cp.symbol, name);
-            //    cp.price = 95000;
-            //    vecCoins.push_back(cp);
-
-            //}
+            ////}
             ////COIN_CNT = vecCoins.size();
 
-            //coins.reserve(COIN_CNT);
-            //for (int i = 0; i < vecCoins.size(); i++)
-            //    coins.push_back(vecCoins[i]);
-            //coins.shrink_to_fit(); // don't change size after it!
-            ////COIN_CNT = vecCoins.size();
-
-            //// or so:
-            ////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
-            ////    whale_global_treshold.push_back(d);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //    whale_global_treshold.push_back(100000);
-            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            //coin_VWAP.reserve(COIN_CNT);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //{
-            //    CoinAnalytics ca;
-            //    coin_VWAP.push_back(ca);
-            //}
-            //coin_VWAP.shrink_to_fit();
+            ////coins.reserve(COIN_CNT);
+            ////for(int i=0; i< COIN_CNT; i++)
+            ////    coins.push_back(vecCoins[i]);
+            ////coins.shrink_to_fit(); // don't change size after it!
             ////
+            //// 
+            ////whale_global_treshold.reserve(COIN_CNT);
+            //////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
+            //////    whale_global_treshold.push_back(d);
+            ////for (int i = 0; i < COIN_CNT; i++)
+            ////    whale_global_treshold.push_back(100'000);
+            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            ////coin_VWAP.reserve(COIN_CNT);
+            ////for (int i = 0; i < COIN_CNT; i++)
+            ////{
+            ////    CoinAnalytics ca;
+            ////    coin_VWAP.push_back(ca);
+            ////}
+            ////coin_VWAP.shrink_to_fit();
+            ///////
+            //////////////////////////////////////////////////////////
+
+
+
+
+
+            ////// old
+            ////    // speed does not decrease if do this:
+            ////std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            ////int sz_src = vecCoins.size();
+            ////for (int i = 0; i < COIN_CNT - sz_src; i++)
+            ////{
+            ////    char name[16] = "";
+            ////    sprintf(name, "BTC%d", i);
+            ////    CoinPair cp;
+            ////    strcpy(cp.symbol, name);
+            ////    cp.price = 95000;
+            ////    vecCoins.push_back(cp);
+
+            ////}
+            //////COIN_CNT = vecCoins.size();
+
+            ////coins.reserve(COIN_CNT);
+            ////for (int i = 0; i < vecCoins.size(); i++)
+            ////    coins.push_back(vecCoins[i]);
+            ////coins.shrink_to_fit(); // don't change size after it!
+            //////COIN_CNT = vecCoins.size();
+
+            ////// or so:
+            //////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
+            //////    whale_global_treshold.push_back(d);
+            ////for (int i = 0; i < COIN_CNT; i++)
+            ////    whale_global_treshold.push_back(100000);
+            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            ////coin_VWAP.reserve(COIN_CNT);
+            ////for (int i = 0; i < COIN_CNT; i++)
+            ////{
+            ////    CoinAnalytics ca;
+            ////    coin_VWAP.push_back(ca);
+            ////}
+            ////coin_VWAP.shrink_to_fit();
+            //////
 
         });
 }
@@ -406,7 +419,7 @@ void Server::emulator_loop()
     qty_rnd.reserve(COIN_CNT);
     for (int i = 0; i < COIN_CNT; i++)
     {
-        qty.push_back((int)whale_global_treshold[1] / coins[i].price);
+        qty.push_back((int)whale_global_treshold[i] / coins[i].price);
         qty_rnd.push_back(qty[i] * 5);
     }
 
@@ -463,7 +476,6 @@ void Server::emulator_loop()
                     }
 
                     ev.is_sell = ((i & 1) == 0); //(i % 2 == 0);
-
 
                     cnt++;
                 }
@@ -795,13 +807,13 @@ void Server::hot_dispatcher()
             ////        c.ewma.reset();
             //}
 
-            c.session.add(ev.price, ev.quantity);
-            if (ext_vwap)
-            {
-                c.roll50.add(ev.price, ev.quantity);
-                //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
-                //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
-            }
+            //c.session.add(ev.price, ev.quantity);
+            //if (ext_vwap)
+            //{
+            //    c.roll50.add(ev.price, ev.quantity);
+            //    //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
+            //    //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
+            //}
 
             if (pv >= whale_global_treshold[ev.index_symbol]) [[unlikely]]
             {
@@ -811,15 +823,15 @@ void Server::hot_dispatcher()
                 we.quantity = ev.quantity;
                 we.timestamp = ev.timestamp;
                 we.is_sell = ev.is_sell;
-                we.vwap_sess = c.session.value();
+                //we.vwap_sess = c.session.value();
 
-                if (ext_vwap)
-                {
-                    we.vwap_roll50 = c.roll50.value();
-                    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
-                    we.delta_roll = ev.price - we.vwap_roll50;
-                    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
-                }
+                //if (ext_vwap)
+                //{
+                //    we.vwap_roll50 = c.roll50.value();
+                //    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
+                //    we.delta_roll = ev.price - we.vwap_roll50;
+                //    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
+                //}
 
             }
 
