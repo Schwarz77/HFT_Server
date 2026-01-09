@@ -76,6 +76,13 @@ Prerequisites
 | 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
 
 
+# Examples of use
+
+![Server](Docs/srv1.jpg)
+![Client](Docs/client1.jpg)
+![Client_VWAP_roll](Docs/client2.jpg)
+
+
 ## License
 
 This project is licensed under the **MIT License**.	
