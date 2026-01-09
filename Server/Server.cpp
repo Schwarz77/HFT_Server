@@ -750,6 +750,7 @@ void Server::event_dispatcher()
             continue;
         }
 
+        //////////////////////////////////////////////////////////////
         // update local_clients 
         if (m_need_update_clients.load(std::memory_order_acquire))
         {
