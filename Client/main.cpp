@@ -1,11 +1,24 @@
 #include "Client.h"
 #include <iostream>
 
+#ifdef _WIN32
+#include <windows.h>
+
+void FixConsoleFreezing() {
+    HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD prev_mode;
+    GetConsoleMode(hInput, &prev_mode);
+    // Отключаем ENABLE_QUICK_EDIT_MODE и ENABLE_EXTENDED_FLAGS
+    SetConsoleMode(hInput, prev_mode & ~ENABLE_QUICK_EDIT_MODE);
+}
+#endif
 
 int main(int argc, char* argv[])
 {
     try
     {
+        FixConsoleFreezing();
+
         std::string host = "127.0.0.1";
         uint16_t port = 6000;
 

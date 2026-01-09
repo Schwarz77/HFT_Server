@@ -5,7 +5,6 @@
 #include <iostream>
 #include <chrono>
 #include <Utils.h>
-#include "Analytics.h"
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
@@ -15,25 +14,33 @@ using steady_clock = std::chrono::steady_clock;
 
 
 ///////////////////////////////////////////////////////////////////////
+//
+// 
+        // it's global data. if move it to class member - speed will decrease slightly 
+   
+////
+//constexpr size_t COIN_CNT = 4;
+//std::vector<CoinPair> coins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+//std::vector<double> whale_global_treshold{ 100000, 70000, 50000, 60000 };
+//std::vector<CoinAnalytics> coin_VWAP(COIN_CNT);
+////
 
 
-const CoinPair coins[] =
-{
-    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
-};
+////
+const size_t COIN_CNT_GEN_DBG = 2048; 
+//size_t COIN_CNT = 0;
+constexpr size_t COIN_CNT = 4;
+std::vector<CoinPair> coins;
+std::vector<double> whale_global_treshold;
+std::vector<CoinAnalytics> coin_VWAP;
+////
 
-const size_t COIN_CNT = _countof(coins);
-
-double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
-
-CoinAnalytics coin_VWAP[COIN_CNT];
-
-
-
+//
+//
 ///////////////////////////////////////////////////////////////////////
 
 
-void set_affinity(std::thread& t, int logical_core_id) 
+void set_affinity(std::thread& t, int logical_core_id)
 {
     HANDLE handle = t.native_handle();
 
@@ -47,10 +54,8 @@ void set_affinity(std::thread& t, int logical_core_id)
 Server::Server(asio::io_context& io, uint16_t port)
     : m_io(io), m_acceptor(io, tcp::endpoint(tcp::v4(), port), true/*false*/)
 {
-    //Start();
-
+    init_coin_data();
     register_coins();
-
 }
 
 Server::~Server() 
@@ -61,14 +66,12 @@ Server::~Server()
 void Server::Start() 
 {
     m_session_dispatcher = std::thread(&Server::session_dispatcher, this);
-    //m_producer = std::thread(&Server::producer_loop, this);
     m_hot_dispatcher = std::thread(&Server::hot_dispatcher, this);
     m_event_dispatcher = std::thread(&Server::event_dispatcher, this);
     m_monitor = std::thread(&Server::speed_monitor, this);
     m_producer = std::thread(&Server::producer, this);
 
     set_affinity(m_producer, 0);
-    //set_affinity(m_session_dispatcher, 2);
     set_affinity(m_hot_dispatcher, 2);
     set_affinity(m_event_dispatcher, 4);
     set_affinity(m_monitor, 5);  // tail to 3 core
@@ -213,8 +216,133 @@ void Server::session_dispatcher()
     }
 }
 
-///////////////////////////////////
-//
+
+void Server::init_coin_data()
+{
+    // do it once ! 
+    // COIN_CNT don't change after it!
+
+    std::call_once(m_coins_initialized, [this]() 
+        {
+
+            ////
+            //coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
+
+            //whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
+            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            //coin_VWAP.resize(COIN_CNT);
+            //coin_VWAP.shrink_to_fit();
+            ////
+
+
+            //////////////////////////////////////////////////////////
+            //// gen 4 coins (COIN_CNT must be const = 4)   // speed 137M at 4 coin & vwap_session
+            const std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            coins.reserve(COIN_CNT);
+            for (int i = 0; i < COIN_CNT; i++)
+                coins.push_back(vecCoins[i]);
+            coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
+
+            std::vector<double> treshold{ 100000, 70000, 50000, 60000 };
+            whale_global_treshold.reserve(COIN_CNT);
+            for (auto d : treshold)
+                whale_global_treshold.push_back(d);
+            whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            coin_VWAP.reserve(COIN_CNT);
+            for (int i = 0; i < COIN_CNT; i++)
+            {
+                coin_VWAP.push_back(CoinAnalytics());
+            }
+            coin_VWAP.shrink_to_fit();
+            ////
+            //////////////////////////////////////////////////////////
+
+
+            ////////////////////////////////////////////////////////
+            ///// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
+            //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //for (int i = 0; i < COIN_CNT_GEN_DBG - vecCoins.size(); i++)
+            //{
+            //    char name[16] = "";
+            //    sprintf(name, "B%d", i);
+            //    CoinPair cp;
+            //    strcpy(cp.symbol, name);
+            //    cp.price = 10000;
+            //    vecCoins.push_back(cp);
+
+            //}
+            //COIN_CNT = vecCoins.size();
+
+            //coins.reserve(COIN_CNT);
+            //for(int i=0; i< COIN_CNT; i++)
+            //    coins.push_back(vecCoins[i]);
+            //coins.shrink_to_fit(); // don't change size after it!
+            //
+            // 
+            //whale_global_treshold.reserve(COIN_CNT);
+            ////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
+            ////    whale_global_treshold.push_back(d);
+            //for (int i = 0; i < COIN_CNT; i++)
+            //    whale_global_treshold.push_back(100'000);
+            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            //coin_VWAP.reserve(COIN_CNT);
+            //for (int i = 0; i < COIN_CNT; i++)
+            //{
+            //    CoinAnalytics ca;
+            //    coin_VWAP.push_back(ca);
+            //}
+            //coin_VWAP.shrink_to_fit();
+            /////
+            ////////////////////////////////////////////////////////
+
+
+
+
+
+            //// old
+            //    // speed does not decrease if do this:
+            //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //int sz_src = vecCoins.size();
+            //for (int i = 0; i < COIN_CNT - sz_src; i++)
+            //{
+            //    char name[16] = "";
+            //    sprintf(name, "BTC%d", i);
+            //    CoinPair cp;
+            //    strcpy(cp.symbol, name);
+            //    cp.price = 95000;
+            //    vecCoins.push_back(cp);
+
+            //}
+            ////COIN_CNT = vecCoins.size();
+
+            //coins.reserve(COIN_CNT);
+            //for (int i = 0; i < vecCoins.size(); i++)
+            //    coins.push_back(vecCoins[i]);
+            //coins.shrink_to_fit(); // don't change size after it!
+            ////COIN_CNT = vecCoins.size();
+
+            //// or so:
+            ////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
+            ////    whale_global_treshold.push_back(d);
+            //for (int i = 0; i < COIN_CNT; i++)
+            //    whale_global_treshold.push_back(100000);
+            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
+
+            //coin_VWAP.reserve(COIN_CNT);
+            //for (int i = 0; i < COIN_CNT; i++)
+            //{
+            //    CoinAnalytics ca;
+            //    coin_VWAP.push_back(ca);
+            //}
+            //coin_VWAP.shrink_to_fit();
+            ////
+
+        });
+}
 
 void Server::register_coins()
 {
@@ -259,7 +387,6 @@ void Server::emulator_loop()
     std::vector<MarketEvent> batch(size_batch);
 
     int64_t cnt = 0;
-    int64_t cnt_whale = 0;
 
     int64_t cnt_whale_gen = 0;
     int64_t cnt_tm_upd = 0;
@@ -270,16 +397,35 @@ void Server::emulator_loop()
 
     uint64_t m_dropped_producer = 0;
 
+        // for generation whale qty 
+    //std::vector<uint32_t> qty{1, 40, 555, 170};
+    //std::vector<uint32_t> qty_rnd{ 5, 40 * 5, 555 * 5, 170 * 5 };
+    std::vector<uint32_t> qty;
+    std::vector<uint32_t> qty_rnd;
+    qty.reserve(COIN_CNT);
+    qty_rnd.reserve(COIN_CNT);
+    for (int i = 0; i < COIN_CNT; i++)
+    {
+        qty.push_back((int)whale_global_treshold[1] / coins[i].price);
+        qty_rnd.push_back(qty[i] * 5);
+    }
 
-    while (m_running) {
-
+    while (m_running) 
+    {
         if (m_hot_buffer.can_write(size_batch))
         {
             for (int i = 0; i < size_batch; ++i) {
-                //int ind = i % COIN_CNT;
-                int ind = fast_range(COIN_CNT - 1);
 
-                auto& t = coins[ind];
+                int ind = fast_rand_range(COIN_CNT);
+
+                if (ind < 0 || ind >= COIN_CNT)
+                {
+                    _mm_pause();
+                    continue;
+                }
+
+                auto& coin = coins[ind];
+
 
                 // time
                 if(cnt_tm_upd++ >= 50'000'000)
@@ -298,18 +444,18 @@ void Server::emulator_loop()
 
                     ev.timestamp = batch_ts;
 
-                    //std::memcpy(ev.symbol, t.symbol, 16);  need remove symbol from MarketEvent
-
-                    ev.price = t.price + fast_float_range(0, 0.7);
+                    ev.price = coin.price + fast_rand_float_range(0, 0.7);
 
                     if (cnt_whale_gen++ >= 75'000'000)
                     {
                         cnt_whale_gen = 0;
-                        //ev.quantity = 100;
-                        ev.quantity =       (ev.index_symbol == 0) ?     1 + fast_range(5) + fast_float_range(0, 0.99)
-                                        :   (ev.index_symbol == 1) ?    40 + fast_range(200) + fast_float_range(0, 0.99)
-                                        :   (ev.index_symbol == 2) ?    555 + fast_range(555*5) + fast_float_range(0, 0.99)
-                                        :                               170 + fast_range(170 * 5) + fast_float_range(0, 0.99);
+
+                        //ev.quantity =       (ev.index_symbol == 0) ?     1 + fast_rand_range(5) + fast_rand_float_range(0, 0.99)         
+                        //                :   (ev.index_symbol == 1) ?    40 + fast_rand_range(200) + fast_rand_float_range(0, 0.99)
+                        //                :   (ev.index_symbol == 2) ?    555 + fast_rand_range(555*5) + fast_rand_float_range(0, 0.99)
+                        //                :                               170 + fast_rand_range(170 * 5) + fast_rand_float_range(0, 0.99);
+
+                        ev.quantity = qty[ev.index_symbol] + fast_rand_range(qty_rnd[ev.index_symbol]) + fast_rand_float_range(0, 0.99);
                     }
                     else
                     {
@@ -320,10 +466,6 @@ void Server::emulator_loop()
 
 
                     cnt++;
- /*                   if (ev.quantity > 99 && ev.total_usd() >= 960000.5)
-                    {
-                        cnt_whale++;
-                    }*/
                 }
 
             }
@@ -374,7 +516,6 @@ void Server::speed_monitor()
     }
 }
 
-/// </summary>
 
 void Server::clear_sessions()
 {
@@ -400,6 +541,7 @@ inline void Server::parse_single_event(simdjson::dom::element item)
 {
     MarketEvent event;
 
+    //static thread_local uint64_t last_trade_id = 0;
     
     std::string_view s;
     if (item["s"].get(s) == simdjson::error_code::SUCCESS) // 's' - it's deal
@@ -407,36 +549,44 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         // Timestamp
         event.timestamp = item["E"].get_uint64();
 
-             // not used
+            // not used
         //// Symbol
         //size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
         //std::memcpy(event.symbol, s.data(), len);
         //event.symbol[len] = '\0';
 
         event.index_symbol = m_reg_coin.get_index_coin(s.data());
-        if (event.index_symbol == -1)
+        if (event.index_symbol != -1)
         {
-            ////  ooops.. new uregistered coin..
-            //// need register and add it to storage (coins)
-            //
-            ////m_reg_coin.register_coin(s.data(), COIN_CNT);
-            //// TODO: set size coins = COIN_CNT + 1  
+            // Price & Quantity (строки в JSON -> double)
+            std::string_view p_str = item["p"].get_string();
+            std::from_chars(p_str.data(), p_str.data() + p_str.size(), event.price);
+
+            std::string_view q_str = item["q"].get_string();
+            std::from_chars(q_str.data(), q_str.data() + q_str.size(), event.quantity);
+
+            // Side
+            event.is_sell = item["m"].get_bool();
+
+            uint64_t trade_id = item["t"].get_uint64();
+
+
+            //if (trade_id <= last_trade_id)
+            //    return;
+
+            //last_trade_id = trade_id;
+
+
+            if (event.timestamp > 0)
+            {
+                m_hot_buffer.push_batch(&event, 1);
+            }
+        }
+        else
+        {
+            ////  ooops.. unregistered coin..
         }
 
-        // Price & Quantity (строки в JSON -> double)
-        std::string_view p_str = item["p"].get_string();
-        std::from_chars(p_str.data(), p_str.data() + p_str.size(), event.price);
-
-        std::string_view q_str = item["q"].get_string();
-        std::from_chars(q_str.data(), q_str.data() + q_str.size(), event.quantity);
-
-        // Side
-        event.is_sell = item["m"].get_bool();
-
-        if (event.timestamp > 0) 
-        {
-            m_hot_buffer.push_batch(&event, 1);
-        }
     }
 }
 
@@ -593,29 +743,27 @@ void Server::hot_dispatcher()
     SetThreadAffinityMask(GetCurrentThread(), 1 << 2);
 
     uint64_t reader_idx = m_hot_buffer.get_head();
-    const int threshold_test = 5000;
 
     int empty_cycles = 0;
-    uint64_t iter_count = 0;
-    uint64_t total_dropped = 0;
 
     std::vector<WhaleEvent> bach_to_client(1024);
     uint64_t cnt_event_to_client = 0;
 
     bool ext_vwap = m_ext_vwap.load(std::memory_order::acquire);
 
+    const uint64_t overload_val = m_hot_buffer.capacity() * 0.9;
+
     while (m_running) {
         uint64_t h = m_hot_buffer.get_head();
 
         size_t avail_read = h - reader_idx;
 
-        //
-        if (avail_read > m_hot_buffer.capacity() * 0.9) {
+        // check buffer overload
+        if (avail_read > overload_val) {
             // We are falling behind, it's drops
             reader_idx = h;
             m_hot_buffer.update_tail(reader_idx);
             printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
-
         }
         //
 
@@ -628,12 +776,8 @@ void Server::hot_dispatcher()
         //size_t to_process = std::min<size_t>(h - reader_idx, 1024);
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
     
-
-        uint64_t first_sec = 0;
-        uint64_t last_sec = 0;
-        bool first = true;
-
-        for (size_t i = 0; i < to_process; ++i) {
+        for (size_t i = 0; i < to_process; ++i) 
+        {
             const auto& ev = m_hot_buffer.read(reader_idx++);
 
             if (ev.index_symbol < 0  || ev.index_symbol >= COIN_CNT)
@@ -641,15 +785,13 @@ void Server::hot_dispatcher()
 
             double pv = ev.total_usd();
 
-            uint64_t sec = ev.timestamp / 1000;
-
             auto& c = coin_VWAP[ev.index_symbol];
 
-            //if (need_reset_vwap.load())
+            //if (m_need_reset_vwap.load(std::memory_order::acquire))
             //{
             //    c.session.reset();
             //    c.signed_flow = 0;
-            ///    if (IsExtCalcVWAP())
+            ///    if (m_ext_vwap.load(std::memory_order::acquire))
             ////        c.ewma.reset();
             //}
 
@@ -713,20 +855,21 @@ void Server::hot_dispatcher()
     }
 }
 
-/////////////////////////////////////////////////////
-
 
 void Server::event_dispatcher()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
 
-    std::vector<std::shared_ptr<Session>> clients_shared; // for hold
-    std::vector<Session*> clients_row[COIN_CNT]; // for fast send
+    // for hold - prevent row_ptr invalidation 
+    std::vector<std::shared_ptr<Session>> clients_shared; 
 
-    uint64_t iter_count = 0;
+    // for fast send by session_index_symbol
+    //std::vector<Session*> clients_row[session_cnt]; 
+    std::vector<std::vector<Session*>> clients_row;    // [ind_coin][Session*]
+    clients_row.resize(COIN_CNT);
 
-    uint64_t total_dropped = 0;
-
+    uint64_t upd_tick = 0;
+    //uint64_t total_dropped = 0;
     int empty_cycles = 0;
 
     uint64_t reader_idx = m_event_buffer.get_head();
@@ -752,12 +895,14 @@ void Server::event_dispatcher()
 
         //////////////////////////////////////////////////////////////
         // update local_clients 
-        if (m_need_update_clients.load(std::memory_order_acquire))
+        if (m_need_update_clients.load(std::memory_order_acquire) || upd_tick++ > 10'000'000'000)
         {
+            upd_tick = 0;
+
             std::lock_guard<std::mutex> lock(m_mtx_subscribers);
             m_need_update_clients.store(false, std::memory_order_relaxed);
 
-            const size_t rsrv_cnt = m_subscribers.size() + 50;
+            const size_t rsrv_cnt = m_subscribers.size() + 10;
 
             clients_shared.clear();
             if (clients_shared.capacity() < rsrv_cnt)
@@ -771,7 +916,8 @@ void Server::event_dispatcher()
                 }
             }
 
-            for (auto& sp : m_subscribers) {
+            for (auto& sp : m_subscribers) 
+            {
                 clients_shared.push_back(sp);
 
                 Session* pSession = sp.get();
@@ -781,27 +927,30 @@ void Server::event_dispatcher()
             }
         }
         //
+        //////////////////////////////////////////////////////////////
 
+
+        // send events
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
 
         for (size_t i = 0; i < to_process; ++i)
         {
             const auto& ev = m_event_buffer.read(reader_idx++);
 
-            for (auto& pSession : clients_row)
+            if (ev.index_symbol >= 0 && ev.index_symbol < COIN_CNT)
             {
-                if (ev.index_symbol >= 0 && ev.index_symbol < COIN_CNT)
+                auto& clients = clients_row[ev.index_symbol];
+                for (auto pSession : clients)
                 {
-                    auto& clients = clients_row[ev.index_symbol];
-                    for (auto pSession : clients)
+                    if (ev.total_usd() >= pSession->GetWhaleTreshold())
                     {
-                       if( ev.total_usd() >= pSession->GetWhaleTreshold())
-                           pSession->PushEvent(ev);
+                        pSession->PushEvent(ev);
                     }
                 }
             }
- 
+
         }
+
 
         if (reader_idx - last_tail_update >= 512/*1024*/) 
         {

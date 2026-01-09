@@ -243,7 +243,7 @@ void Session::handle_subscribe(const std::vector<uint8_t>& payload)
 
 
     if (m_server.IsShowLogMsg())
-        std::cout << "\nSession: client subscribed to type=" << int(m_req_type) << "\n";
+        std::cout << "\nSession: client subscribed to " << symbol << "\n";
 
     m_server.RegisterSession(shared_from_this());
 

@@ -62,13 +62,18 @@ public:
     }
 
 private:
+
+    alignas(64) std::atomic<uint64_t> head;
     std::vector<T> buffer;
     const uint64_t mask = Capacity - 1;
-    alignas(64) std::atomic<uint64_t> head;
     alignas(64) std::atomic<uint64_t> tail;
 };
 
+
+
 //////////////////////////////////////////////////////////////////////////
+
+
 
 template<typename T, uint64_t Size>
 class SPSCRingBuffer {
@@ -130,7 +135,10 @@ public:
     }
 
 private:
-    std::array<T, Size> buffer;
+
     alignas(64) std::atomic<uint64_t> head{ 0 };
+    std::array<T, Size> buffer;
     alignas(64) std::atomic<uint64_t> tail{ 0 };
 };
+
+

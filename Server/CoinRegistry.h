@@ -19,7 +19,7 @@ public:
     inline uint64_t symbol2u64(const char* s) const
     {
         uint64_t s64 = 0;
-        std::memcpy(&s64, s, std::min(std::strlen(s), (size_t)8));
+        std::memcpy(&s64, s, std::min<size_t>(std::strlen(s), (size_t)8));
 
         return s64;
 

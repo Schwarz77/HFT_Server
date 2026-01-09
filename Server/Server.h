@@ -2,6 +2,7 @@
 
 #include "RingBuffer.h"
 #include "CoinRegistry.h"
+#include "Analytics.h"
 #include "Session.h"
 #include <boost/asio.hpp>
 #include <vector>
@@ -13,9 +14,12 @@
 #include <deque>
 #include <atomic>
 #include <random>
+#include <xcall_once.h>
+
 #include <simdjson.h>
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
+
 
 constexpr size_t BUFFER_SIZE = 8 * 1024 * 1024;
 constexpr size_t COLD_BUFFER_SIZE = 2 * 1024 * 1024;
@@ -87,6 +91,7 @@ private:
     void process_market_msg(const ix::WebSocketMessagePtr& msg);
 
     void register_coins();
+    void init_coin_data();
 
 protected:
 
@@ -101,7 +106,7 @@ protected:
 
     CoinRegistry m_reg_coin;
 
-     std::atomic<bool> m_running{ true };
+    std::atomic<bool> m_running{ true };
 
     std::thread m_session_dispatcher;
     std::thread m_producer;
@@ -112,7 +117,12 @@ protected:
     std::atomic<bool> m_data_emulation{ true };
     std::atomic<bool> m_ext_vwap{ false };
     std::atomic<bool> m_show_log_msg{ true };
+    std::atomic<bool> m_need_update_clients{ true };
 
-    std::atomic<bool> m_need_update_clients{ false };
+    //size_t COIN_CNT{0};
+    //std::vector<CoinPair> m_coins;
+    //std::vector<double> m_whale_global_treshold;
+    //std::vector<CoinAnalytics> m_coin_VWAP;
+    std::once_flag m_coins_initialized;
 
 };

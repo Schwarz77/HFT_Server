@@ -80,14 +80,15 @@ inline uint32_t fast_rand()
     return g_seed;
 }
 
-inline uint32_t fast_range(uint32_t range)
+inline uint32_t fast_rand_range(uint32_t range)
 {
     uint32_t x = fast_rand();
     uint64_t res = (uint64_t)x * (uint64_t)range;
     return (uint32_t)(res >> 32);
 }
 
-inline float fast_float_range(float min, float max)
+// [0..1]
+inline float fast_rand_float_range(float min, float max)
 {
     float r = (fast_rand() & 0xFFFFFF) * 0x1.0p-24f;
     return min + r * (max - min);

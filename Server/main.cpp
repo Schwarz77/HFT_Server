@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
         io::io_context io;
 
         uint16_t port = 6000;
-        bool data_emulation = false;
+        bool data_emulation = true;//false;
         bool ext_vwap = false;
 
         if (argc >= 2)

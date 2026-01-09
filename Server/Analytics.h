@@ -7,6 +7,7 @@ struct CoinPair
 {
     char symbol[16];
     double price;
+    //double global_whale_treshold;
 };
 
 
@@ -133,4 +134,10 @@ struct CoinAnalytics {
     RollingVWAP<50>      roll50;
     //EWMAVWAP             ewma;
     //double signed_flow = 0;
+
+    CoinAnalytics()
+    {
+        session.reset();
+        roll50.reset();
+    }
 };
