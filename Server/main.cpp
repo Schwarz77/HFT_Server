@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
         uint16_t port = 6000;
         bool data_emulation = true;//false;
-        bool ext_vwap = false;
+        bool ext_vwap = true;
 
         if (argc >= 2)
             port = static_cast<uint16_t>(std::atoi(argv[1]));

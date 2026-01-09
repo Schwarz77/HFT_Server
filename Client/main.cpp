@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
         std::string symbol("BTCUSDT");
         double treshold = 100'000;
-        bool ext_vwap = false;
+        bool ext_vwap = true;
 
         EProtocolDataType reqType = EProtocolDataType::Whale | EProtocolDataType::VWAP;
 

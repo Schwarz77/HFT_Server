@@ -39,14 +39,14 @@ CoinAnalytics coin_VWAP[COIN_CNT];
 ////
 
 //
-//////
+////
 //const size_t COIN_CNT_GEN_DBG = 2048; // coins count (will be created)
-////size_t COIN_CNT = 0;      // open it to work with pre_coin_list (like from ini-file)
-//constexpr size_t COIN_CNT = 4;
+//size_t COIN_CNT = 0;      // open it to work with pre_coin_list (like from ini-file)
+////constexpr size_t COIN_CNT = 4;
 //std::vector<CoinPair> coins;
 //std::vector<double> whale_global_treshold;
 //std::vector<CoinAnalytics> coin_VWAP;
-//////
+////
 
 //
 //
@@ -239,14 +239,14 @@ void Server::init_coin_data()
         {
 
             //////
-            ////coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            ////coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
+            //coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            //coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
 
-            ////whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
-            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
+            //whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
+            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
 
-            ////coin_VWAP.resize(COIN_CNT);
-            ////coin_VWAP.shrink_to_fit();
+            //coin_VWAP.resize(COIN_CNT);
+            //coin_VWAP.shrink_to_fit();
             //////
 
 
@@ -807,13 +807,13 @@ void Server::hot_dispatcher()
             ////        c.ewma.reset();
             //}
 
-            //c.session.add(ev.price, ev.quantity);
-            //if (ext_vwap)
-            //{
-            //    c.roll50.add(ev.price, ev.quantity);
-            //    //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
-            //    //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
-            //}
+            c.session.add(ev.price, ev.quantity);
+            if (ext_vwap)
+            {
+                c.roll50.add(ev.price, ev.quantity);
+                //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
+                //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
+            }
 
             if (pv >= whale_global_treshold[ev.index_symbol]) [[unlikely]]
             {
@@ -823,15 +823,15 @@ void Server::hot_dispatcher()
                 we.quantity = ev.quantity;
                 we.timestamp = ev.timestamp;
                 we.is_sell = ev.is_sell;
-                //we.vwap_sess = c.session.value();
+                we.vwap_sess = c.session.value();
 
-                //if (ext_vwap)
-                //{
-                //    we.vwap_roll50 = c.roll50.value();
-                //    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
-                //    we.delta_roll = ev.price - we.vwap_roll50;
-                //    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
-                //}
+                if (ext_vwap)
+                {
+                    we.vwap_roll50 = c.roll50.value();
+                    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
+                    we.delta_roll = ev.price - we.vwap_roll50;
+                    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
+                }
 
             }
 
