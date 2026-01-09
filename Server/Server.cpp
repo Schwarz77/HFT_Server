@@ -18,18 +18,18 @@ using steady_clock = std::chrono::steady_clock;
 // 
         // it's global data. if move it to class member - speed will decrease slightly 
 
+
+//const CoinPair coins[] =
+//{
+//    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
+//};
 //
-const CoinPair coins[] =
-{
-    {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
-};
-
-const size_t COIN_CNT = _countof(coins);
-
-double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
-
-CoinAnalytics coin_VWAP[COIN_CNT];
+//const size_t COIN_CNT = _countof(coins);
 //
+//double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
+//
+//CoinAnalytics coin_VWAP[COIN_CNT];
+
 
 ////
 //constexpr size_t COIN_CNT = 4;
@@ -38,14 +38,14 @@ CoinAnalytics coin_VWAP[COIN_CNT];
 //std::vector<CoinAnalytics> coin_VWAP(COIN_CNT);
 ////
 
-//
+
 ////
-//const size_t COIN_CNT_GEN_DBG = 2048; // coins count (will be created)
-//size_t COIN_CNT = 0;      // open it to work with pre_coin_list (like from ini-file)
-////constexpr size_t COIN_CNT = 4;
-//std::vector<CoinPair> coins;
-//std::vector<double> whale_global_treshold;
-//std::vector<CoinAnalytics> coin_VWAP;
+const size_t COIN_CNT_GEN_DBG = 4; // coins count (will be created)
+//const size_t COIN_CNT_GEN_DBG = 1024;
+size_t COIN_CNT = 0;
+std::vector<CoinPair> coins;
+std::vector<double> whale_global_treshold;
+std::vector<CoinAnalytics> coin_VWAP;
 ////
 
 //
@@ -275,84 +275,41 @@ void Server::init_coin_data()
 
 
             //////////////////////////////////////////////////////////
-            /////// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
-            ////std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            ////for (int i = 0; i < COIN_CNT_GEN_DBG - vecCoins.size(); i++)
-            ////{
-            ////    char name[16] = "";
-            ////    sprintf(name, "B%d", i);
-            ////    CoinPair cp;
-            ////    strcpy(cp.symbol, name);
-            ////    cp.price = 10000;
-            ////    vecCoins.push_back(cp);
+            ///// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
+            std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
+            for (int i = 0; i < COIN_CNT_GEN_DBG - vecCoins.size(); i++)
+            {
+                char name[16] = "";
+                sprintf(name, "B%d", i);
+                CoinPair cp;
+                strcpy(cp.symbol, name);
+                cp.price = 10000;
+                vecCoins.push_back(cp);
 
-            ////}
-            ////COIN_CNT = vecCoins.size();
+            }
+            COIN_CNT = vecCoins.size();
 
-            ////coins.reserve(COIN_CNT);
-            ////for(int i=0; i< COIN_CNT; i++)
-            ////    coins.push_back(vecCoins[i]);
-            ////coins.shrink_to_fit(); // don't change size after it!
-            ////
-            //// 
-            ////whale_global_treshold.reserve(COIN_CNT);
-            //////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
-            //////    whale_global_treshold.push_back(d);
-            ////for (int i = 0; i < COIN_CNT; i++)
-            ////    whale_global_treshold.push_back(100'000);
-            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
+            coins.reserve(COIN_CNT);
+            for(int i=0; i< COIN_CNT; i++)
+                coins.push_back(vecCoins[i]);
+            coins.shrink_to_fit(); // don't change size after it!
+            
+             
+            whale_global_treshold.reserve(COIN_CNT);
+            //for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
+            //    whale_global_treshold.push_back(d);
+            for (int i = 0; i < COIN_CNT; i++)
+                whale_global_treshold.push_back(100'000);
+            whale_global_treshold.shrink_to_fit();
 
-            ////coin_VWAP.reserve(COIN_CNT);
-            ////for (int i = 0; i < COIN_CNT; i++)
-            ////{
-            ////    CoinAnalytics ca;
-            ////    coin_VWAP.push_back(ca);
-            ////}
-            ////coin_VWAP.shrink_to_fit();
-            ///////
+            coin_VWAP.reserve(COIN_CNT);
+            for (int i = 0; i < COIN_CNT; i++)
+            {
+                coin_VWAP.push_back(CoinAnalytics());
+            }
+            coin_VWAP.shrink_to_fit();
+            /////
             //////////////////////////////////////////////////////////
-
-
-
-
-
-            ////// old
-            ////    // speed does not decrease if do this:
-            ////std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            ////int sz_src = vecCoins.size();
-            ////for (int i = 0; i < COIN_CNT - sz_src; i++)
-            ////{
-            ////    char name[16] = "";
-            ////    sprintf(name, "BTC%d", i);
-            ////    CoinPair cp;
-            ////    strcpy(cp.symbol, name);
-            ////    cp.price = 95000;
-            ////    vecCoins.push_back(cp);
-
-            ////}
-            //////COIN_CNT = vecCoins.size();
-
-            ////coins.reserve(COIN_CNT);
-            ////for (int i = 0; i < vecCoins.size(); i++)
-            ////    coins.push_back(vecCoins[i]);
-            ////coins.shrink_to_fit(); // don't change size after it!
-            //////COIN_CNT = vecCoins.size();
-
-            ////// or so:
-            //////for (auto d : std::vector<double>{ 100000, 70000, 50000, 60000 })
-            //////    whale_global_treshold.push_back(d);
-            ////for (int i = 0; i < COIN_CNT; i++)
-            ////    whale_global_treshold.push_back(100000);
-            ////whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            ////coin_VWAP.reserve(COIN_CNT);
-            ////for (int i = 0; i < COIN_CNT; i++)
-            ////{
-            ////    CoinAnalytics ca;
-            ////    coin_VWAP.push_back(ca);
-            ////}
-            ////coin_VWAP.shrink_to_fit();
-            //////
 
         });
 }

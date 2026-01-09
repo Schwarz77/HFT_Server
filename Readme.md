@@ -1,59 +1,81 @@
 # High-Frequency Market Data Analytics Engine
 
-A low-latency C++ engine designed to process market data at 100M+ Events Per Second (EPS). The system performs real-time VWAP calculations, adaptive whale detection, and contextual data enrichment.
-##🚀 Key Architectural Decisions
-1. Zero-Copy Data Pipeline
+A high-performance C++ server designed for real-time monitoring and analysis of "whale" trades (large-volume transactions) on cryptocurrency exchanges. The system is engineered for low-latency data processing, utilizing lock-free structures and asynchronous I/O to handle high-throughput market data feeds.
+The system performs real-time VWAP calculations and whale detection at 100M+ Events Per Second (EPS).
 
-To handle extreme throughput on consumer-grade hardware (like i7-9700), the system avoids the "Copy-Per-Subscriber" bottleneck.
+## Key Architectural Decisions
 
-    Shared State: All analytics (VWAP, Volume) are computed once in a global registry.
+1. Low-Latency Architecture: Implements custom lock-free Ring Buffers to pass data between threads without the overhead of mutexes.
 
-    Non-Blocking Dispatch: Events are pushed to sessions using a try_push strategy, ensuring that a slow network client never stalls the core processing engine.
+2. High-Throughput Processing:
 
-2. Multi-Stage Adaptive Filtering
+    Hot Dispatcher: Rapidly ingest and pre-process raw market events.
+    Zero-Copy Data Pipeline: to handle extreme throughput on consumer-grade hardware (like i7-9700), the system avoids the "Copy-Per-Subscriber" bottleneck.
+    Event Dispatcher: Filters trades based on USD volume thresholds and calculates real-time analytics.
 
-Instead of a static threshold, the engine uses a liquidity-aware filtering funnel:
+3. Advanced Analytics Engine: Calculates multiple versions of the Volume Weighted Average Price (VWAP):
 
-    System Floor: Initial noise reduction to protect the CPU cache.
+    Session VWAP: Cumulative average since server start.
 
-    Adaptive Threshold: The server dynamically calculates "Whale" levels for each asset based on a rolling 1-minute volume window (Threshold=AvgTrade×Multiplier×SafetyMargin).
+    Rolling VWAP: Moving average over the last N trades.
 
-    User Context: Subscribers receive a pre-filtered stream and apply their final granular filters.
+4. Optimized Networking: Built on Boost.Asio with thread-safe "strands" to manage thousands of concurrent client sessions.
 
-3. Cache-Optimized Analytics (O(1))
+5. Fast Metadata Lookup: Uses a custom CoinRegistry (a high-speed hash table with open addressing) to map ticker symbols to internal indices in O(1) time.
 
-The CoinAnalytics engine is designed around CPU cache line alignment (alignas(64)):
 
-    Incremental Updates: VWAP is updated in-place without storing historical trade lists.
 
-    Sliding Window: Uses a Bucketed Ring Buffer for 1-minute rolling statistics, ensuring constant time complexity regardless of event volume.
+## System Architecture
 
-4. Asynchronous Network I/O (Boost.Asio)
+The server operates as a multi-stage pipeline to ensure that network I/O never blocks the analytical engine:
 
-To handle multiple concurrent subscribers without blocking the core engine, the system utilizes an asynchronous I/O model:
+    Producer (Binance/Emulator): Connects to the exchange via WebSockets and pushes raw MarketEvent data into the m_hot_buffer.
 
-    Decoupled Architecture: The Core Dispatcher and the Network Layer communicate via lock-free buffers. Network latency or TCP backpressure never affects the analytics throughput.
+    Hot Dispatcher: Consumes raw events, updates the analytical state (VWAP, price updates) in the CoinAnalytics array.
 
-    Efficient Broadcasting: Leveraging boost::asio to manage hundreds of simultaneous WebSocket/TCP connections using a thread-safe, non-blocking delivery mechanism.
+    Event Dispatcher: Identifies "Whale Events" based on volume. If a trade exceeds the threshold, it is moved to the m_event_buffer.
 
-    Pro-level Networking: Implementation of asynchronous write chains to ensure orderly data delivery without memory bloat.
+    Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
 
-##🏗 System Design
+## Tech Stack
 
-    The Dispatcher: The "Hot Loop" that owns the analytics state and performs event enrichment.
+	Language: C++20
 
-    Enriched Events: Whale alerts are not just price/size; they are enriched with 1m Momentum and Daily Baseline VWAP context at the moment of detection.
+	Networking: Boost.Asio
 
-    Backpressure Management: Implementation of a "Drop-on-Overflow" policy for individual sessions to maintain overall system stability.
+	JSON Parsing: simdjson (High-performance SIMD-accelerated parsing)
 
-##🛠 Tech Stack
+	WebSocket: IXWebSocket
 
-    Language: C++20
+	Data Structures: Custom Lock-free SPSC/MPMC Ring Buffers.
 
-    Concurrency: Lock-free SPSC Queues, Atomic Operations.
+## Build and Installation
 
-    Optimization: Data-Oriented Design (DOD), Cache-line padding, SIMD-friendly loops.
-	
+Prerequisites
+
+    C++20 compatible compiler
+
+    Boost Libraries (System, Asio)
+
+    simdjson
+
+    IXWebSocket
+
+
+## Benchmark
+
+    Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
+
+|Throughput (EPS) | Configuration |	Complexity | Why the difference?	
+| :--- | :--- | :--- | :--- |
+| 141M | 4 Coins (Fixed Array) | VWAP_session |	Maximum Optimization: Compiler uses constant folding and direct memory addressing.
+| 117M | 4 Coins (Fixed Array) | VWAP_session + VWAP_roll |	Maximum Optimization. Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
+| :--- | :--- | :--- | :--- |
+| 129M | 4 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
+| 116M | 4 Coins (Runtime Vector) | VWAP_session + VWAP_roll| Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
+| 126M | 1024 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
+| 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
+
 
 ## License
 
