@@ -321,14 +321,6 @@ void Session::DeliverUpdates(std::vector<WhaleEvent>& events, size_t size)
                 vwap_roll50 = host_to_net_u64(vwap_roll50);
                 payload.insert(payload.end(), (uint8_t*)&vwap_roll50, (uint8_t*)&vwap_roll50 + 8);
 
-                    // NOT USED!
-                ////vwap_ewma
-                //uint64_t vwap_ewma;
-                //static_assert(sizeof(vwap_ewma) == sizeof(we.vwap_ewma), "double size mismatch");
-                //std::memcpy(&vwap_ewma, &we.vwap_ewma, sizeof(vwap_ewma));
-                //vwap_ewma = host_to_net_u64(vwap_ewma);
-                //payload.insert(payload.end(), (uint8_t*)&vwap_ewma, (uint8_t*)&vwap_ewma + 8);
-
                 //delta_roll
                 double delta_roll_src = we.delta_roll;
                 uint64_t delta_roll;
@@ -336,15 +328,6 @@ void Session::DeliverUpdates(std::vector<WhaleEvent>& events, size_t size)
                 std::memcpy(&delta_roll, &delta_roll_src, sizeof(delta_roll));
                 delta_roll = host_to_net_u64(delta_roll);
                 payload.insert(payload.end(), (uint8_t*)&delta_roll, (uint8_t*)&delta_roll + 8);
-
-
-                ////delta_ewma - NOT USED!
-                //double delta_ewma_src = we.reserve;//we.delta_ewma;
-                //uint64_t delta_ewma;
-                //static_assert(sizeof(delta_ewma) == sizeof(delta_ewma_src), "double size mismatch");
-                //std::memcpy(&delta_ewma, &delta_ewma_src, sizeof(delta_ewma));
-                //delta_ewma = host_to_net_u64(delta_ewma);
-                //payload.insert(payload.end(), (uint8_t*)&delta_ewma, (uint8_t*)&delta_ewma + 8);
 
             }
 

@@ -368,23 +368,6 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
             double vwap_roll50;
             std::memcpy(&vwap_roll50, &ubits, sizeof(vwap_roll50));
 
-
-                // not used
-            ////vwap_ewma
-            //if (pos + 8 > body.size())
-            //{
-            //    std::cout << "No vwap_ewma\n";
-            //    return;
-            //}
-
-            //std::memcpy(&ubits, body.data() + pos, 8);
-            //ubits = net_to_host_u64(ubits);
-            //pos += 8;
-
-            //double vwap_ewma;
-            //std::memcpy(&vwap_ewma, &ubits, sizeof(vwap_ewma));
-
-
             //delta_roll
             if (pos + 8 > body.size())
             {
@@ -398,22 +381,6 @@ void Client::process_body(uint8_t data_type, const std::vector<uint8_t>& body)
 
             double delta_roll;
             std::memcpy(&delta_roll, &ubits, sizeof(delta_roll));
-
-
-                // not used
-            ////delta_ewma
-            //if (pos + 8 > body.size())
-            //{
-            //    std::cout << "No delta_ewma\n";
-            //    return;
-            //}
-
-            //std::memcpy(&ubits, body.data() + pos, 8);
-            //ubits = net_to_host_u64(ubits);
-            //pos += 8;
-
-            //double delta_ewma;
-            //std::memcpy(&delta_ewma, &ubits, sizeof(delta_ewma));
 
 
             if (m_show_log_msg)

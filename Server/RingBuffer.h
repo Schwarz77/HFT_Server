@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <vector>
+#include <array>
 #include <cstdint>
 
 
@@ -56,6 +57,7 @@ public:
     }
 
     uint64_t get_head() const { return head.load(std::memory_order_acquire); }
+    uint64_t get_tail() const { return tail.load(std::memory_order_acquire); }
 
     static constexpr uint64_t capacity() noexcept {
         return Capacity;

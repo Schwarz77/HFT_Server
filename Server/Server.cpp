@@ -18,7 +18,7 @@ using steady_clock = std::chrono::steady_clock;
 // 
         // it's global data. if move it to class member - speed will decrease slightly 
 
-
+// const array - max speed
 const CoinPair coins[] =
 {
     {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
@@ -31,15 +31,7 @@ double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 CoinAnalytics coin_VWAP[COIN_CNT];
 
 
-////
-//constexpr size_t COIN_CNT = 4;
-//std::vector<CoinPair> coins = { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-//std::vector<double> whale_global_treshold{ 100000, 70000, 50000, 60000 };
-//std::vector<CoinAnalytics> coin_VWAP(COIN_CNT);
-////
-
-
-////
+//// vector - for init data from .ini
 //const size_t COIN_CNT_GEN_DBG = 4; // coins count (will be created)
 ////const size_t COIN_CNT_GEN_DBG = 1024;
 //size_t COIN_CNT = 0;
@@ -237,43 +229,8 @@ void Server::init_coin_data()
 
     std::call_once(m_coins_initialized, [this]() 
         {
-
-            //////
-            //coins = std::vector<CoinPair> { { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            //coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
-
-            //whale_global_treshold = std::vector<double> { 100000, 70000, 50000, 60000 };
-            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            //coin_VWAP.resize(COIN_CNT);
-            //coin_VWAP.shrink_to_fit();
-            //////
-
-
-            ////////////////////////////////////////////////////////////
-            ////// gen 4 coins (COIN_CNT must be const = 4)   // speed 137M at 4 coin & vwap_session
-            //const std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
-            //coins.reserve(COIN_CNT);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //    coins.push_back(vecCoins[i]);
-            //coins.shrink_to_fit(); // don't change size after it! (line for test with speed decrease protect - to work compiler )
-
-            //std::vector<double> treshold{ 100000, 70000, 50000, 60000 };
-            //whale_global_treshold.reserve(COIN_CNT);
-            //for (auto d : treshold)
-            //    whale_global_treshold.push_back(d);
-            //whale_global_treshold.shrink_to_fit(); // don't change size after it!
-
-            //coin_VWAP.reserve(COIN_CNT);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //{
-            //    coin_VWAP.push_back(CoinAnalytics());
-            //}
-            //coin_VWAP.shrink_to_fit();
-            //////
-            ////////////////////////////////////////////////////////////
-
-
+            // TODO: init data from .ini
+            
             //////////////////////////////////////////////////////////
             ///// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
             //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
@@ -302,13 +259,6 @@ void Server::init_coin_data()
             //    whale_global_treshold.push_back(100'000);
             //whale_global_treshold.shrink_to_fit();
 
-            //coin_VWAP.reserve(COIN_CNT);
-            //for (int i = 0; i < COIN_CNT; i++)
-            //{
-            //    coin_VWAP.push_back(CoinAnalytics());
-            //}
-            //coin_VWAP.shrink_to_fit();
-            /////
             //////////////////////////////////////////////////////////
 
         });
@@ -368,8 +318,6 @@ void Server::emulator_loop()
     uint64_t m_dropped_producer = 0;
 
         // for generation whale qty 
-    //std::vector<uint32_t> qty{1, 40, 555, 170};
-    //std::vector<uint32_t> qty_rnd{ 5, 40 * 5, 555 * 5, 170 * 5 };
     std::vector<uint32_t> qty;
     std::vector<uint32_t> qty_rnd;
     qty.reserve(COIN_CNT);
@@ -420,11 +368,6 @@ void Server::emulator_loop()
                     {
                         cnt_whale_gen = 0;
 
-                        //ev.quantity =       (ev.index_symbol == 0) ?     1 + fast_rand_range(5) + fast_rand_float_range(0, 0.99)         
-                        //                :   (ev.index_symbol == 1) ?    40 + fast_rand_range(200) + fast_rand_float_range(0, 0.99)
-                        //                :   (ev.index_symbol == 2) ?    555 + fast_rand_range(555*5) + fast_rand_float_range(0, 0.99)
-                        //                :                               170 + fast_rand_range(170 * 5) + fast_rand_float_range(0, 0.99);
-
                         ev.quantity = qty[ev.index_symbol] + fast_rand_range(qty_rnd[ev.index_symbol]) + fast_rand_float_range(0, 0.99);
                     }
                     else
@@ -432,7 +375,7 @@ void Server::emulator_loop()
                         ev.quantity = 1;
                     }
 
-                    ev.is_sell = ((i & 1) == 0); //(i % 2 == 0);
+                    ev.is_sell = ((i & 1) == 0); //(i % 2 == 0)
 
                     cnt++;
                 }
@@ -518,13 +461,8 @@ inline void Server::parse_single_event(simdjson::dom::element item)
         // Timestamp
         event.timestamp = item["E"].get_uint64();
 
-            // not used
-        //// Symbol
-        //size_t len = std::min<size_t>(s.size(), sizeof(event.symbol) - 1);
-        //std::memcpy(event.symbol, s.data(), len);
-        //event.symbol[len] = '\0';
-
         event.index_symbol = m_reg_coin.get_index_coin(s.data());
+
         if (event.index_symbol != -1)
         {
             // Price & Quantity (строки в JSON -> double)
@@ -711,7 +649,7 @@ void Server::hot_dispatcher()
 {
     SetThreadAffinityMask(GetCurrentThread(), 1 << 2);
 
-    uint64_t reader_idx = m_hot_buffer.get_head();
+    uint64_t reader_idx = m_hot_buffer.get_tail();
 
     int empty_cycles = 0;
 
@@ -727,78 +665,81 @@ void Server::hot_dispatcher()
 
         size_t avail_read = h - reader_idx;
 
-        // check buffer overload
-        if (avail_read > overload_val) {
-            // We are falling behind, it's drops
-            reader_idx = h;
-            m_hot_buffer.update_tail(reader_idx);
-            printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
-        }
-        //
+        //// check buffer overload
+        //if (avail_read > overload_val) {
+        //    // We are falling behind, it's drops
+        //    reader_idx = h;
+        //    m_hot_buffer.update_tail(reader_idx);
+        //    printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
+        //}
+        ////
 
-        if (h <= reader_idx) {
-            _mm_pause();
-            continue;
+        if (h - reader_idx > m_hot_buffer.capacity()) {
+            reader_idx = h - (m_hot_buffer.capacity() - 1024);
+            std::cerr << "[CRITICAL] hot_dispatcher overrun! Lag: " << (h - reader_idx) << std::endl;
         }
 
-        // Параметры пачки
-        //size_t to_process = std::min<size_t>(h - reader_idx, 1024);
+
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
-    
-        for (size_t i = 0; i < to_process; ++i) 
+
+        if (h > reader_idx) 
         {
-            const auto& ev = m_hot_buffer.read(reader_idx++);
-
-            if (ev.index_symbol < 0  || ev.index_symbol >= COIN_CNT)
-                continue;
-
-            double pv = ev.total_usd();
-
-            auto& c = coin_VWAP[ev.index_symbol];
-
-            //if (m_need_reset_vwap.load(std::memory_order::acquire))
-            //{
-            //    c.session.reset();
-            //    c.signed_flow = 0;
-            ///    if (m_ext_vwap.load(std::memory_order::acquire))
-            ////        c.ewma.reset();
-            //}
-
-            c.session.add(ev.price, ev.quantity);
-            if (ext_vwap)
+            for (size_t i = 0; i < to_process; ++i)
             {
-                c.roll50.add(ev.price, ev.quantity);
-                //c.ewma.add(ev.price, 0.05, ev.timestamp); //c.ewma.update(ev.price, ev.timestamp);
-                //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
-            }
+                const auto& ev = m_hot_buffer.read(reader_idx++);
 
-            if (pv >= whale_global_treshold[ev.index_symbol]) [[unlikely]]
-            {
-                WhaleEvent& we = bach_to_client[cnt_event_to_client++];
-                we.index_symbol = ev.index_symbol;
-                we.price = ev.price;
-                we.quantity = ev.quantity;
-                we.timestamp = ev.timestamp;
-                we.is_sell = ev.is_sell;
-                we.vwap_sess = c.session.value();
+                if (ev.index_symbol < 0 || ev.index_symbol >= COIN_CNT)
+                    continue;
 
+                double pv = ev.total_usd();
+
+                auto& c = coin_VWAP[ev.index_symbol];
+
+                // TODO: reset analytic data
+                //if (m_need_reset_vwap.load(std::memory_order::acquire))
+                //{
+                //    c.session.reset();
+                //    c.signed_flow = 0;
+                //}
+
+                c.session.add(ev.price, ev.quantity);
                 if (ext_vwap)
                 {
-                    we.vwap_roll50 = c.roll50.value();
-                    //we.vwap_ewma = c.ewma.value(); //we.vwap_ewma = c.ewma.value;
-                    we.delta_roll = ev.price - we.vwap_roll50;
-                    //we.delta_ewma = (we.delta_ewma != 0) ? ev.price - we.vwap_ewma : 0;
+                    c.roll50.add(ev.price, ev.quantity);
+                    //c.signed_flow += ev.is_sell ? -ev.quantity : ev.quantity;
+                }
+
+                if (pv >= whale_global_treshold[ev.index_symbol]) [[unlikely]]
+                {
+                    WhaleEvent& we = bach_to_client[cnt_event_to_client++];
+                    we.index_symbol = ev.index_symbol;
+                    we.price = ev.price;
+                    we.quantity = ev.quantity;
+                    we.timestamp = ev.timestamp;
+                    we.is_sell = ev.is_sell;
+                    we.vwap_sess = c.session.value();
+
+                    if (ext_vwap)
+                    {
+                        we.vwap_roll50 = c.roll50.value();
+                        we.delta_roll = ev.price - we.vwap_roll50;
+                    }
+
                 }
 
             }
 
+
+            //write events
+
+            //if(m_event_buffer.can_write(cnt_event_to_client)) {
+            //    m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
+            //    cnt_event_to_client = 0;
+            //}
+            m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
+            cnt_event_to_client = 0;
         }
-
-
-        //write events
-        m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
-        cnt_event_to_client = 0;
-
+  
 
         if (to_process > 0) {
             m_hot_buffer.update_tail(reader_idx);
@@ -857,81 +798,97 @@ void Server::event_dispatcher()
         //}
         //////
 
-        if (h <= reader_idx) {
-            _mm_pause();
-            continue;
+        if (h - reader_idx > BUFFER_SIZE) {
+             reader_idx = h - (BUFFER_SIZE / 2);
+            std::cerr << "[CRITICAL] event_dispatcher overrun!" << std::endl;
         }
 
-        //////////////////////////////////////////////////////////////
-        // update local_clients 
-        if (m_need_update_clients.load(std::memory_order_acquire) || upd_tick++ > 10'000'000'000)
-        {
-            upd_tick = 0;
-
-            std::lock_guard<std::mutex> lock(m_mtx_subscribers);
-            m_need_update_clients.store(false, std::memory_order_relaxed);
-
-            const size_t rsrv_cnt = m_subscribers.size() + 10;
-
-            clients_shared.clear();
-            if (clients_shared.capacity() < rsrv_cnt)
-                clients_shared.reserve(rsrv_cnt);
-
-            for (int i = 0; i < COIN_CNT; i++)
-            {
-                clients_row[i].clear();
-                if (clients_row[i].capacity() < rsrv_cnt) {
-                    clients_row[i].reserve(rsrv_cnt);
-                }
-            }
-
-            for (auto& sp : m_subscribers) 
-            {
-                clients_shared.push_back(sp);
-
-                Session* pSession = sp.get();
-                int ind = pSession->GetSymbolIndex();
-                if(ind >= 0 && ind < COIN_CNT)
-                    clients_row[ind].push_back(pSession);
-            }
-        }
-        //
-        //////////////////////////////////////////////////////////////
+        //if (h <= reader_idx) {
+        //    _mm_pause();
+        //    continue;
+        //}
 
 
-        // send events
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
 
-        for (size_t i = 0; i < to_process; ++i)
+        if (h > reader_idx)
         {
-            const auto& ev = m_event_buffer.read(reader_idx++);
 
-            if (ev.index_symbol >= 0 && ev.index_symbol < COIN_CNT)
+            //////////////////////////////////////////////////////////////
+            // update local_clients 
+            if (m_need_update_clients.load(std::memory_order_acquire) || upd_tick++ > 10'000'000'000)
             {
-                auto& clients = clients_row[ev.index_symbol];
-                for (auto pSession : clients)
+                upd_tick = 0;
+
+                std::lock_guard<std::mutex> lock(m_mtx_subscribers);
+                m_need_update_clients.store(false, std::memory_order_relaxed);
+
+                const size_t rsrv_cnt = m_subscribers.size() + 10;
+
+                clients_shared.clear();
+                if (clients_shared.capacity() < rsrv_cnt)
+                    clients_shared.reserve(rsrv_cnt);
+
+                for (int i = 0; i < COIN_CNT; i++)
                 {
-                    if (ev.total_usd() >= pSession->GetWhaleTreshold())
-                    {
-                        pSession->PushEvent(ev);
+                    clients_row[i].clear();
+                    if (clients_row[i].capacity() < rsrv_cnt) {
+                        clients_row[i].reserve(rsrv_cnt);
                     }
                 }
+
+                for (auto& sp : m_subscribers)
+                {
+                    clients_shared.push_back(sp);
+
+                    Session* pSession = sp.get();
+                    int ind = pSession->GetSymbolIndex();
+                    if (ind >= 0 && ind < COIN_CNT)
+                        clients_row[ind].push_back(pSession);
+                }
+            }
+            //
+            //////////////////////////////////////////////////////////////
+
+
+            // send events
+            for (size_t i = 0; i < to_process; ++i)
+            {
+                const auto& ev = m_event_buffer.read(reader_idx++);
+
+                if (ev.index_symbol >= 0 && ev.index_symbol < COIN_CNT)
+                {
+                    auto& clients = clients_row[ev.index_symbol];
+                    for (auto pSession : clients)
+                    {
+                        if (ev.total_usd() >= pSession->GetWhaleTreshold())
+                        {
+                            pSession->PushEvent(ev);
+                        }
+                    }
+                }
+
             }
 
-        }
-
-
-        if (reader_idx - last_tail_update >= 512/*1024*/) 
-        {
-            m_event_buffer.update_tail(reader_idx);
-            last_tail_update = reader_idx;
         }
 
         if (to_process > 0) {
             empty_cycles = 0;
             //_mm_pause();
+
+            if (reader_idx - last_tail_update >= 512/*1024*/)
+            {
+                m_event_buffer.update_tail(reader_idx);
+                last_tail_update = reader_idx;
+            }
         }
         else {
+
+            if (reader_idx != last_tail_update) {
+                m_event_buffer.update_tail(reader_idx);
+                last_tail_update = reader_idx;
+            }
+
             empty_cycles++;
             if (empty_cycles < 1000) {
                 _mm_pause();

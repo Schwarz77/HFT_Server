@@ -27,10 +27,10 @@ struct WhaleEvent {
 
     double vwap_sess;
     double vwap_roll50;
-    double vwap_ewma;
+    double reserve;  //vwap_ewma;  // not used
 
     float delta_roll;
-    float reserve; //float delta_ewma; // not used
+    float reserve2; //float delta_ewma; // not used
     
 
     char pad[3];

@@ -49,7 +49,7 @@ The server operates as a multi-stage pipeline to ensure that network I/O never b
 
 	- Data Structures: Custom Lock-free Ring Buffers.
 
-## Build and Installation
+## Build
 
 Prerequisites
 
@@ -61,6 +61,46 @@ Prerequisites
 
     - IXWebSocket
 
+##Standard Build Instructions 
+
+First, clone the repository:
+```
+git clone <repo_url>
+cd <repo>
+```
+
+### Windows (Using Vcpkg)
+
+Ensure that VCPKG is installed and the environment variable `%VCPKG_ROOT%` is correctly set.
+```
+mkdir build && cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
+## Running
+
+### Server
+
+Start the server, listening on port 5000:
+```
+./bin/Server 5000		# emulator, calc VWAP_roll
+or
+./bin/Server 5000 1 0   # emulator, no VWAP_roll
+or
+./bin/Server 5000 0 1	# binance stream, calc VWAP_roll
+or
+./bin/Server 5000 0 1	# binance stream, no VWAP_roll
+```
+
+### Client
+
+Start the client and connect to the server at 127.0.0.1:5000:
+```
+./bin/Client 127.0.0.1 5000
+or 
+./bin/Client 127.0.0.1 5000 1 ETH 150000 0	# ip port req_type coin_name whale_tresold VWAP_roll
+```
 
 ## Benchmark
 

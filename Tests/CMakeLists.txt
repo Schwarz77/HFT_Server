@@ -1,5 +1,5 @@
 
-add_executable(Tests utility_test.cpp server_test.cpp session_test.cpp integration_test.cpp perf_test.cpp stress_test.cpp)
+add_executable(Tests RingBufferTest.cpp AnalyticsTest.cpp)
 
 target_include_directories(
     Tests
@@ -19,5 +19,5 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(Tests)
-
 gtest_discover_tests(Tests)
+
