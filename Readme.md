@@ -108,7 +108,7 @@ or
 
 ## Benchmark
 
-    Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
+Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
 
 |Throughput (EPS) | Configuration |	Complexity | Why the difference?	
 | :--- | :--- | :--- | :--- |
