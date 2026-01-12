@@ -99,13 +99,13 @@ cmake --build . --config Release
 
 Start the server, listening on port 5000:
 ```
-./bin/Server 5000		# emulator, calc VWAP_roll
+./bin/Server 5000		
+
 or
-./bin/Server 5000 1 0   # emulator, no VWAP_roll
-or
-./bin/Server 5000 0 1	# binance stream, calc VWAP_roll
-or
-./bin/Server 5000 0 1	# binance stream, no VWAP_roll
+
+# 				port		emulator/binance_stream		no VWAP_roll
+./bin/Server 	5000 		1 							0   
+
 ```
 
 ### Client
@@ -113,8 +113,11 @@ or
 Start the client and connect to the server at 127.0.0.1:5000:
 ```
 ./bin/Client 127.0.0.1 5000
-or 
-./bin/Client 127.0.0.1 5000 1 ETH 150000 0	# IP port req_type coin_name whale_tresold VWAP_roll
+
+or
+
+# 				IP 			port 	req_type 	coin_name 	whale_treshold 	VWAP_roll 
+./bin/Client 	127.0.0.1 	5000 	1 			ETHUSDT 	150000 			0	
 ```
 
 
