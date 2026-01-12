@@ -443,10 +443,13 @@ void Session::ForceClose()
 
 void Session::PushEvent(const WhaleEvent& event)
 {
-
-    if (!m_event_buffer.try_push(event))
+    if (m_event_buffer.can_write(1))
     {
-        printf("\nSession::PushEvent OVERLOADED! DROP!\n");
+        m_event_buffer.push_batch(&event, 1);
+    }
+    else
+    {
+        // drop cnt
     }
 }
 

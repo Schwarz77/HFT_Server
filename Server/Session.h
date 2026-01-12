@@ -95,7 +95,7 @@ private:
 
     //
 
-    SessionRingBuffer<WhaleEvent, SESSION_BUFFER_SIZE> m_event_buffer;
+    RingBuffer<WhaleEvent, SESSION_BUFFER_SIZE> m_event_buffer;
     std::thread m_event_dispatcher;
 
 public:

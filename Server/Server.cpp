@@ -655,6 +655,8 @@ void Server::hot_dispatcher()
 
     const uint64_t overload_val = m_hot_buffer.capacity() * 0.9;
 
+    uint64_t last_tail_update = reader_idx;
+
     while (m_running) {
         uint64_t h = m_hot_buffer.get_head();
 
@@ -715,20 +717,38 @@ void Server::hot_dispatcher()
 
             }
 
+            if (reader_idx - last_tail_update >= 512/*1024*/)
+            {
+                m_hot_buffer.update_tail(reader_idx);
+                last_tail_update = reader_idx;
+            }
 
-            //write events
+            if (cnt_event_to_client > 0) {
 
-            m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
-            cnt_event_to_client = 0;
+                //write events
+                while (!m_event_buffer.can_write(cnt_event_to_client)) {
+                    if (!m_running)
+                        return;
+                    _mm_pause();
+                }
+
+                m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
+                cnt_event_to_client = 0;
+            }
+
         }
   
 
         if (to_process > 0) {
-            m_hot_buffer.update_tail(reader_idx);
             empty_cycles = 0;
             //_mm_pause(); // No!
         }
         else {
+            if (reader_idx != last_tail_update) {
+                m_hot_buffer.update_tail(reader_idx);
+                last_tail_update = reader_idx;
+            }
+
             empty_cycles++;
             if (empty_cycles < 1000) {
                 _mm_pause();
