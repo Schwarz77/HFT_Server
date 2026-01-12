@@ -103,7 +103,7 @@ Start the server, listening on port 5000:
 
 or
 
-# 				port		emulator/binance_stream		no VWAP_roll
+# 				port		emulator/binance_stream		VWAP_roll
 ./bin/Server 	5000 		1 							0   
 
 ```
