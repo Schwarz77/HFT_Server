@@ -65,7 +65,7 @@ Prerequisites
 
 * GoogleTest: Used for unit testing.
 
-##Standard Build Instructions 
+## Standard Build Instructions 
 
 First, clone the repository:
 ```
