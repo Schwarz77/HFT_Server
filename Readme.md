@@ -31,39 +31,39 @@ The system performs real-time VWAP calculations and whale detection at 100M+ Eve
 
 The server operates as a multi-stage pipeline to ensure that network I/O never blocks the analytical engine:
 
-* ** Producer (Binance/Emulator): Connects to the exchange via WebSockets and pushes raw MarketEvent data into the m_hot_buffer.
+* Producer (Binance/Emulator): Connects to the exchange via WebSockets and pushes raw MarketEvent data into the m_hot_buffer.
 
-* ** Hot Dispatcher: Consumes raw events, updates the analytical state (VWAP, price updates) in the CoinAnalytics array.
+* Hot Dispatcher: Consumes raw events, updates the analytical state (VWAP, price updates) in the CoinAnalytics array.
 
-* ** Event Dispatcher: Identifies "Whale Events" based on volume. If a trade exceeds the threshold, it is moved to the m_event_buffer.
+* Event Dispatcher: Identifies "Whale Events" based on volume. If a trade exceeds the threshold, it is moved to the m_event_buffer.
 
-* ** Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
+* Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
 
 ## Tech Stack
 
-* ** Language: C++20
+* Language: C++20
 
-* ** Networking: Boost.Asio
+* Networking: Boost.Asio
 
-* ** JSON Parsing: simdjson (High-performance SIMD-accelerated parsing)
+* JSON Parsing: simdjson (High-performance SIMD-accelerated parsing)
 
-* ** WebSocket: IXWebSocket
+* WebSocket: IXWebSocket
 
-* ** Data Structures: Custom Lock-free Ring Buffers.
+* Data Structures: Custom Lock-free Ring Buffers.
 
 ## Build
 
 Prerequisites
 
-* ** C++20 compatible compiler
+* C++20 compatible compiler
 
-* ** Boost Libraries (System, Asio)
+* Boost Libraries (System, Asio)
 
-* ** simdjson
+* simdjson
 
-* ** IXWebSocket
+* IXWebSocket
 
-* ** GoogleTest: Used for unit testing.
+* GoogleTest: Used for unit testing.
 
 ##Standard Build Instructions 
 
