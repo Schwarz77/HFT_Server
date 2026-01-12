@@ -3,6 +3,13 @@
 A high-performance C++ server designed for real-time monitoring and analysis of "whale" trades (large-volume transactions) on cryptocurrency exchanges. The system is engineered for low-latency data processing, utilizing lock-free structures and asynchronous I/O to handle high-throughput market data feeds.
 The system performs real-time VWAP calculations and whale detection at 100M+ Events Per Second (EPS).
 
+The engine supports two distinct data sources tailored for different use cases:
+
+* Hi-Speed Emulation Mode: A synthetic market event generator designed for stress testing. It enables the evaluation of system throughput and latency under extreme loads (exceeding 100 million events per second) without being bottlenecked by network bandwidth.
+
+* Production Binance Stream: A direct connection to the Binance WebSocket API. It utilizes the ixwebsocket library for a robust, high-uptime connection and SIMDJson for ultra-fast parsing of incoming JSON packets, significantly minimizing CPU overhead.
+
+
 ## Key Architectural Decisions
 
 1. Low-Latency Architecture: Implements custom lock-free Ring Buffers to pass data between threads without the overhead of mutexes.
@@ -26,7 +33,6 @@ The system performs real-time VWAP calculations and whale detection at 100M+ Eve
 6. Network Core: Powered by my personal **Client/Server boilerplate** based on Boost.Asio https://github.com/Schwarz77/AsyncTcpSignalServer
 
 
-
 ## System Architecture
 
 The server operates as a multi-stage pipeline to ensure that network I/O never blocks the analytical engine:
@@ -39,6 +45,7 @@ The server operates as a multi-stage pipeline to ensure that network I/O never b
 
 * Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
 
+
 ## Tech Stack
 
 * Language: C++20
@@ -50,6 +57,7 @@ The server operates as a multi-stage pipeline to ensure that network I/O never b
 * WebSocket: IXWebSocket
 
 * Data Structures: Custom Lock-free Ring Buffers.
+
 
 ## Build
 
@@ -65,6 +73,7 @@ Prerequisites
 
 * GoogleTest: Used for unit testing.
 
+
 ## Standard Build Instructions 
 
 First, clone the repository:
@@ -72,6 +81,7 @@ First, clone the repository:
 git clone <repo_url>
 cd <repo>
 ```
+
 
 ### Windows (Using Vcpkg)
 
@@ -81,6 +91,7 @@ mkdir build && cd build
 cmake .. -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ```
+
 
 ## Running
 
@@ -106,6 +117,7 @@ or
 ./bin/Client 127.0.0.1 5000 1 ETH 150000 0	# IP port req_type coin_name whale_tresold VWAP_roll
 ```
 
+
 ## Benchmark
 
 Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
@@ -118,6 +130,7 @@ Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled 
 | 116M | 4 Coins (Runtime Vector) | VWAP_session + VWAP_roll| Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
 | 126M | 1024 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
 | 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
+
 
 ## Directory Structure
 ```
@@ -148,6 +161,7 @@ Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled 
 │   └── AnalyticsTest.cpp
 └──build/
 ```
+
 
 # Examples of use
 

@@ -2,7 +2,7 @@
 
 #include <atomic>
 #include <vector>
-#include <array>
+//#include <array>
 #include <cstdint>
 
 
@@ -78,10 +78,15 @@ private:
 
 
 template<typename T, uint64_t Size>
-class SPSCRingBuffer {
+class SessionRingBuffer {
     static_assert((Size& (Size - 1)) == 0, "Power of 2");
     const uint64_t mask = Size - 1;
 public:
+    SessionRingBuffer() : buffer(Size) {
+        head.store(0, std::memory_order_relaxed);
+        tail.store(0, std::memory_order_relaxed);
+    }
+
     bool try_push(const T& item) {
         const uint64_t curr_head = head.load(std::memory_order_relaxed);
         const uint64_t curr_tail = tail.load(std::memory_order_acquire);
@@ -106,20 +111,49 @@ public:
         return true;
     }
 
+    //size_t pop_batch(T* out_array, size_t max_count) {
+    //    const uint64_t t = tail.load(std::memory_order_relaxed);
+    //    const uint64_t h = head.load(std::memory_order_acquire);
+
+    //    if (t == h)
+    //        return 0;
+
+    //    size_t available = h - t;
+    //    size_t to_read = (available < max_count) ? available : max_count;
+
+    //    // TODO: memcpy, if T is POD structure
+    //    for (size_t i = 0; i < to_read; ++i) {
+    //        out_array[i] = buffer[(t + i) & mask];
+    //    }
+
+
+    //    tail.store(t + to_read, std::memory_order_release);
+    //    return to_read;
+    //}
+
     size_t pop_batch(T* out_array, size_t max_count) {
-        const uint64_t t = tail.load(std::memory_order_relaxed);
         const uint64_t h = head.load(std::memory_order_acquire);
+        const uint64_t t = tail.load(std::memory_order_relaxed);
 
         if (t == h)
             return 0;
 
         size_t available = h - t;
-        //size_t to_read = std::min(available, max_count);
         size_t to_read = (available < max_count) ? available : max_count;
 
-        // TODO: memcpy, if T is POD structure
-        for (size_t i = 0; i < to_read; ++i) {
-            out_array[i] = buffer[(t + i) & mask];
+        size_t start_idx = t & mask;
+
+        size_t first_part = Size - start_idx;
+
+        if (to_read <= first_part) {
+
+            std::memcpy(out_array, &buffer[start_idx], to_read * sizeof(T));
+        }
+        else {
+            std::memcpy(out_array, &buffer[start_idx], first_part * sizeof(T));
+
+            size_t second_part = to_read - first_part;
+            std::memcpy(out_array + first_part, &buffer[0], second_part * sizeof(T));
         }
 
         tail.store(t + to_read, std::memory_order_release);
@@ -138,9 +172,9 @@ public:
 
 private:
 
-    alignas(64) std::atomic<uint64_t> head{ 0 };
-    std::array<T, Size> buffer;
-    alignas(64) std::atomic<uint64_t> tail{ 0 };
+    alignas(64) std::atomic<uint64_t> head;
+    std::vector<T> buffer;
+    alignas(64) std::atomic<uint64_t> tail;
 };
 
 

@@ -328,6 +328,8 @@ void Server::emulator_loop()
         qty_rnd.push_back(qty[i] * 5);
     }
 
+    m_need_reset_vwap.store(true, std::memory_order::release);
+
     while (m_running) 
     {
         if (m_hot_buffer.can_write(size_batch))
@@ -533,6 +535,8 @@ void Server::binance_stream()
 
     std::string url = "wss://fstream.binance.com/ws";
 
+    m_need_reset_vwap.store(true, std::memory_order::release);
+
     while (m_running)
     {
         ix::WebSocket ws;
@@ -637,8 +641,7 @@ void Server::binance_stream()
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::cerr << "\n[Binance] Reconnecting...\n";
 
-            // TODO: set flag to reset VWAP_session
-            // ..
+            m_need_reset_vwap.store(true, std::memory_order::release);
         }
 
     }
@@ -665,19 +668,14 @@ void Server::hot_dispatcher()
 
         size_t avail_read = h - reader_idx;
 
-        //// check buffer overload
-        //if (avail_read > overload_val) {
-        //    // We are falling behind, it's drops
-        //    reader_idx = h;
-        //    m_hot_buffer.update_tail(reader_idx);
-        //    printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
-        //}
-        ////
-
-        if (h - reader_idx > m_hot_buffer.capacity()) {
-            reader_idx = h - (m_hot_buffer.capacity() - 1024);
-            std::cerr << "[CRITICAL] hot_dispatcher overrun! Lag: " << (h - reader_idx) << std::endl;
+        // check buffer overload
+        if (avail_read > overload_val) {
+            // We are falling behind, it's drops
+            reader_idx = h;
+            m_hot_buffer.update_tail(reader_idx);
+            printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
         }
+        //
 
 
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
@@ -695,11 +693,9 @@ void Server::hot_dispatcher()
 
                 auto& c = coin_VWAP[ev.index_symbol];
 
-                // TODO: reset analytic data
                 //if (m_need_reset_vwap.load(std::memory_order::acquire))
                 //{
                 //    c.session.reset();
-                //    c.signed_flow = 0;
                 //}
 
                 c.session.add(ev.price, ev.quantity);
@@ -790,23 +786,14 @@ void Server::event_dispatcher()
 
         uint64_t avail_read = h - reader_idx;
 
-        //////
-        //if (avail_read > m_event_buffer.capacity() * 0.9) {
-        //    reader_idx = h;
-        //    m_event_buffer.update_tail(reader_idx);
-        //    printf("\nevent_dispatcher OVERLOADED! DROPS!\n");
-        //}
-        //////
-
-        if (h - reader_idx > BUFFER_SIZE) {
-             reader_idx = h - (BUFFER_SIZE / 2);
-            std::cerr << "[CRITICAL] event_dispatcher overrun!" << std::endl;
+        ////
+        if (avail_read > m_event_buffer.capacity() * 0.9) {
+            reader_idx = h;
+            m_event_buffer.update_tail(reader_idx);
+            printf("\nevent_dispatcher OVERLOADED! DROPS!\n");
         }
-
-        //if (h <= reader_idx) {
-        //    _mm_pause();
-        //    continue;
-        //}
+        ////
+        
 
 
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;

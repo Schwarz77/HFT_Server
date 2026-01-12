@@ -118,7 +118,8 @@ protected:
     std::atomic<bool> m_ext_vwap{ false };
     std::atomic<bool> m_show_log_msg{ true };
     std::atomic<bool> m_need_update_clients{ true };
-
+    std::atomic<bool> m_need_reset_vwap{ false };
+ 
     //size_t COIN_CNT{0};
     //std::vector<CoinPair> m_coins;
     //std::vector<double> m_whale_global_treshold;
