@@ -23,43 +23,47 @@ The system performs real-time VWAP calculations and whale detection at 100M+ Eve
 
 5. Fast Metadata Lookup: Uses a custom CoinRegistry (a high-speed hash table with open addressing) to map ticker symbols to internal indices in O(1) time.
 
+6. Network Core: Powered by my personal **Client/Server boilerplate** based on Boost.Asio https://github.com/Schwarz77/AsyncTcpSignalServer
+
 
 
 ## System Architecture
 
 The server operates as a multi-stage pipeline to ensure that network I/O never blocks the analytical engine:
 
-    - Producer (Binance/Emulator): Connects to the exchange via WebSockets and pushes raw MarketEvent data into the m_hot_buffer.
+* ** Producer (Binance/Emulator): Connects to the exchange via WebSockets and pushes raw MarketEvent data into the m_hot_buffer.
 
-    - Hot Dispatcher: Consumes raw events, updates the analytical state (VWAP, price updates) in the CoinAnalytics array.
+* ** Hot Dispatcher: Consumes raw events, updates the analytical state (VWAP, price updates) in the CoinAnalytics array.
 
-    - Event Dispatcher: Identifies "Whale Events" based on volume. If a trade exceeds the threshold, it is moved to the m_event_buffer.
+* ** Event Dispatcher: Identifies "Whale Events" based on volume. If a trade exceeds the threshold, it is moved to the m_event_buffer.
 
-    - Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
+* ** Client Sessions: Each session runs in its own thread/strand, filtering events based on the client's specific subscriptions (e.g., "Only show me BTC trades > $100k").
 
 ## Tech Stack
 
-	- Language: C++20
+* ** Language: C++20
 
-	- Networking: Boost.Asio
+* ** Networking: Boost.Asio
 
-	- JSON Parsing: simdjson (High-performance SIMD-accelerated parsing)
+* ** JSON Parsing: simdjson (High-performance SIMD-accelerated parsing)
 
-	- WebSocket: IXWebSocket
+* ** WebSocket: IXWebSocket
 
-	- Data Structures: Custom Lock-free Ring Buffers.
+* ** Data Structures: Custom Lock-free Ring Buffers.
 
 ## Build
 
 Prerequisites
 
-    - C++20 compatible compiler
+* ** C++20 compatible compiler
 
-    - Boost Libraries (System, Asio)
+* ** Boost Libraries (System, Asio)
 
-    - simdjson
+* ** simdjson
 
-    - IXWebSocket
+* ** IXWebSocket
+
+* ** GoogleTest: Used for unit testing.
 
 ##Standard Build Instructions 
 
@@ -99,7 +103,7 @@ Start the client and connect to the server at 127.0.0.1:5000:
 ```
 ./bin/Client 127.0.0.1 5000
 or 
-./bin/Client 127.0.0.1 5000 1 ETH 150000 0	# ip port req_type coin_name whale_tresold VWAP_roll
+./bin/Client 127.0.0.1 5000 1 ETH 150000 0	# IP port req_type coin_name whale_tresold VWAP_roll
 ```
 
 ## Benchmark
@@ -115,10 +119,40 @@ or
 | 126M | 1024 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
 | 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
 
+## Directory Structure
+```
+├── CMakeLists.txt 
+├── Server/
+│   ├── CMakeLists.txt 
+│   ├── Session.h
+│   ├── Session.cpp
+│   ├── Server.h
+│   ├── Server.cpp
+│   ├── RingBuffer.h
+│   ├── Analytics.h
+│   ├── CoinRegistry.h
+│   └── main.cpp
+├── Client/
+│   ├── CMakeLists.txt 
+│   ├── Client.h
+│   ├── Client.cpp
+│   └── main.cpp
+├── Include/
+│   └── Protocol.h
+├── Utils/
+│   ├── Utils.h
+│   └── Utils.cpp
+├── Tests/
+│   ├── CMakeLists.txt 
+│   ├── RingBufferTest.cpp
+│   └── AnalyticsTest.cpp
+└──build/
+```
 
 # Examples of use
 
-![Server](Docs/srv1.jpg)
+![Server_emulator](Docs/srv1.jpg)
+![Server_binance](Docs/srv_binance.jpg)
 ![Client](Docs/client1.jpg)
 ![Client_VWAP_roll](Docs/client2.jpg)
 
@@ -126,3 +160,4 @@ or
 ## License
 
 This project is licensed under the **MIT License**.	
+
