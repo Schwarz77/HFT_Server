@@ -232,11 +232,6 @@ void Client::start_read_body(uint32_t len, uint8_t data_type)
     asio::async_read(m_socket, asio::buffer(m_body),
         [this, data_type](const error_code& ec, std::size_t /*n*/)
         {
-            //if (ec == asio::error::operation_aborted)
-            //{
-            //    return;
-            //}
-
             if (ec)
             {
                 write_error("Read body error", ec);

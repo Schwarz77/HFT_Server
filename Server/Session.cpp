@@ -43,7 +43,6 @@ void Session::async_read_header()
 
     auto self = shared_from_this();
 
-    // read exactly header size
     asio::async_read(m_socket, asio::buffer(m_buf_header),
         asio::bind_executor(m_strand,
             [this, self](error_code ec, std::size_t /*n*/)
@@ -103,17 +102,6 @@ void Session::async_read_header()
                     close();
                     return;
                 }
-
-                /////
-                //// tmp emulate ETH client
-                //static int cnt_gen = 0;
-                //if (cnt_gen++ % 4 == 1)
-                //{
-                //    m_whale_treshold = 125000;
-                //    m_ind_symb = 1;//ETH
-                //}
-                ////
-                /////
 
                 async_read_body(len, data_type);
 
@@ -455,17 +443,10 @@ void Session::ForceClose()
 
 void Session::PushEvent(const WhaleEvent& event)
 {
-    //static int cnt = 0; 
 
     if (!m_event_buffer.try_push(event))
     {
-        //cnt++;
-
-        //if (cnt > 10)
-        //{
-        //    cnt = 0;
-        //    std::cout << std::endl << "Session::PushEvent - DROP: " << cnt << std::endl;
-        //}
+        printf("\nSession::PushEvent OVERLOADED! DROP!\n");
     }
 }
 
@@ -485,15 +466,14 @@ void Session::event_reader() {
         size_t total_processed_in_this_tick = 0;
         size_t read_count = 0;
 
-        //////
-        //uint64_t h = m_event_buffer.get_head(); // memory_order_acquire
 
-        //if (h - reader_idx > m_event_buffer.capacity() * 0.9) {
-        //    reader_idx = h;
-        //    //m_event_buffer.update_tail(reader_idx);
-        //    printf("\nSession::event_reader OVERLOADED! DROPS!\n");
-        //}
-        //////         
+        uint64_t h = m_event_buffer.get_head();
+
+        if (h - reader_idx > m_event_buffer.capacity() * 0.9) {
+            reader_idx = h;
+            m_event_buffer.update_tail(reader_idx);
+            printf("\nSession::event_reader OVERLOADED! DROPS!\n");
+        }
 
 
         while ((read_count = m_event_buffer.pop_batch(&batch[0], size_batch)) > 0) {

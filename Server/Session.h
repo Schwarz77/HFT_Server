@@ -1,7 +1,6 @@
 #pragma once
 
 #include "RingBuffer.h"
-//#include "CoinRegistry.h"
 #include <Protocol.h>
 #include <boost/asio.hpp>
 #include <deque>
@@ -52,7 +51,6 @@ public:
     ~Session();
 
     void Start();
-    //void DeliverUpdates(const VecSignal& updates);
     void DeliverUpdates(std::vector<WhaleEvent>& events, size_t size);
     bool Expired() const;
     void ForceClose();
@@ -101,9 +99,7 @@ private:
     std::thread m_event_dispatcher;
 
 public:
-    //std::string m_coin_name{"BTCUSDT"};
-    //uint64_t m_coin_name_hash{0};
-    double m_whale_treshold{ 105000 };
+    double m_whale_treshold{ 0 };
     int m_ind_symb{ 0 };
 
 };

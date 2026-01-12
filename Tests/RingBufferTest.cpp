@@ -7,7 +7,6 @@
 #include <atomic>
 #include <chrono>
 
-//#pragma comment(linker, "/STACK:16777216")
 
 TEST(RingBufferTest, HighSpeedConcurrency) {
     constexpr uint64_t CAPACITY = 1024 * 1024;
@@ -91,11 +90,11 @@ TEST(RingBufferTest, HighSpeedConcurrency) {
 }
 
 
-TEST(SPSCRingBufferTest, HighSpeedConcurrency2) {
+TEST(SessionRingBufferTest, HighSpeedConcurrency2) {
     constexpr uint64_t CAPACITY = 1024 * 1024;
     constexpr size_t TOTAL_EVENTS = 50'000'000;
 
-    auto buffer_ptr = std::make_unique<SPSCRingBuffer<uint64_t, CAPACITY>>();
+    auto buffer_ptr = std::make_unique<SessionRingBuffer<uint64_t, CAPACITY>>();
     auto& buffer = *buffer_ptr;
 
     std::atomic<bool> start_flag{ false };

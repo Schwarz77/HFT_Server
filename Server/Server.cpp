@@ -31,6 +31,7 @@ double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 CoinAnalytics coin_VWAP[COIN_CNT];
 
 
+
 //// vector - for init data from .ini
 //const size_t COIN_CNT_GEN_DBG = 4; // coins count (will be created)
 ////const size_t COIN_CNT_GEN_DBG = 1024;
@@ -39,6 +40,7 @@ CoinAnalytics coin_VWAP[COIN_CNT];
 //std::vector<double> whale_global_treshold;
 //std::vector<CoinAnalytics> coin_VWAP;
 ////
+
 
 //
 //
@@ -121,8 +123,6 @@ void Server::do_accept()
 
                 write_error("Accept error, STOP ACCEPT!", ec);
 
-                // do_accept() should never be called !
-
             }
         });
 }
@@ -130,8 +130,6 @@ void Server::do_accept()
 void Server::Stop() 
 {
     m_running = false;
-
-    // close acceptor
     error_code ec;
 
     if (m_acceptor.is_open())
@@ -230,7 +228,8 @@ void Server::init_coin_data()
     std::call_once(m_coins_initialized, [this]() 
         {
             // TODO: init data from .ini
-            
+            // ...
+
             //////////////////////////////////////////////////////////
             ///// gen by count COIN_CNT_GEN_DBG // speed 130M at 4 coin & vwap_session, 
             //std::vector<CoinPair> vecCoins{ { "BTCUSDT", 96000.0 }, { "ETHUSDT", 2700.0 }, { "SOLUSDT", 180.0 }, { "BNBUSDT", 600.0 } };
@@ -455,8 +454,7 @@ inline void Server::parse_single_event(simdjson::dom::element item)
 {
     MarketEvent event;
 
-    //static thread_local uint64_t last_trade_id = 0;
-    
+   
     std::string_view s;
     if (item["s"].get(s) == simdjson::error_code::SUCCESS) // 's' - it's deal
     {
@@ -467,7 +465,7 @@ inline void Server::parse_single_event(simdjson::dom::element item)
 
         if (event.index_symbol != -1)
         {
-            // Price & Quantity (строки в JSON -> double)
+            // Price & Quantity
             std::string_view p_str = item["p"].get_string();
             std::from_chars(p_str.data(), p_str.data() + p_str.size(), event.price);
 
@@ -478,12 +476,6 @@ inline void Server::parse_single_event(simdjson::dom::element item)
             event.is_sell = item["m"].get_bool();
 
             uint64_t trade_id = item["t"].get_uint64();
-
-
-            //if (trade_id <= last_trade_id)
-            //    return;
-
-            //last_trade_id = trade_id;
 
 
             if (event.timestamp > 0)
@@ -613,7 +605,7 @@ void Server::binance_stream()
         uint64_t last_cnt = 0;
         while (m_running)
         {
-            /// pause without blocking shutdown 
+            // pause without blocking shutdown 
             uint64_t sleep_dur = 5000; //5s
             uint64_t ts1 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -624,7 +616,7 @@ void Server::binance_stream()
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            ///
+
 
 
             uint64_t cur_cnt = ws_in_cnt.load();
@@ -668,14 +660,11 @@ void Server::hot_dispatcher()
 
         size_t avail_read = h - reader_idx;
 
-        // check buffer overload
         if (avail_read > overload_val) {
-            // We are falling behind, it's drops
             reader_idx = h;
             m_hot_buffer.update_tail(reader_idx);
             printf("\nhot_dispatcher OVERLOADED! DROPS!\n");
         }
-        //
 
 
         size_t to_process = (avail_read < 1024) ? avail_read : 1024;
@@ -696,6 +685,7 @@ void Server::hot_dispatcher()
                 //if (m_need_reset_vwap.load(std::memory_order::acquire))
                 //{
                 //    c.session.reset();
+                //    //c.signed_flow = 0;
                 //}
 
                 c.session.add(ev.price, ev.quantity);
@@ -728,10 +718,6 @@ void Server::hot_dispatcher()
 
             //write events
 
-            //if(m_event_buffer.can_write(cnt_event_to_client)) {
-            //    m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
-            //    cnt_event_to_client = 0;
-            //}
             m_event_buffer.push_batch(&bach_to_client[0], cnt_event_to_client);
             cnt_event_to_client = 0;
         }
@@ -770,12 +756,10 @@ void Server::event_dispatcher()
     std::vector<std::shared_ptr<Session>> clients_shared; 
 
     // for fast send by session_index_symbol
-    //std::vector<Session*> clients_row[session_cnt]; 
     std::vector<std::vector<Session*>> clients_row;    // [ind_coin][Session*]
     clients_row.resize(COIN_CNT);
 
     uint64_t upd_tick = 0;
-    //uint64_t total_dropped = 0;
     int empty_cycles = 0;
 
     uint64_t reader_idx = m_event_buffer.get_head();
@@ -786,13 +770,12 @@ void Server::event_dispatcher()
 
         uint64_t avail_read = h - reader_idx;
 
-        ////
+
         if (avail_read > m_event_buffer.capacity() * 0.9) {
             reader_idx = h;
             m_event_buffer.update_tail(reader_idx);
             printf("\nevent_dispatcher OVERLOADED! DROPS!\n");
         }
-        ////
         
 
 

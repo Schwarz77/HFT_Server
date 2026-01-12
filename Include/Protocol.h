@@ -43,36 +43,3 @@ inline EProtocolDataType operator|(EProtocolDataType lhs, EProtocolDataType rhs)
     using T = std::underlying_type_t<EProtocolDataType>;
     return static_cast<EProtocolDataType>(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
-
-
-//struct Signal
-//{
-//    using time_point = std::chrono::steady_clock::time_point;
-//
-//    uint32_t    id;
-//    ESignalType type;
-//    double      value;
-//    time_point  ts;
-//
-//    Signal()
-//        : id(-1), type(ESignalType::unknown), value(0.0), ts(time_point())
-//    {
-//    }
-//
-//    Signal(uint32_t _id, ESignalType _type, double _value = 0.0, time_point _ts = time_point())
-//        : id(_id), type(_type), value(_value), ts(_ts)
-//    {
-//    }
-//
-//    bool operator == (const Signal& rhs) const
-//    {
-//        return  (       id == rhs.id 
-//                    &&  type == rhs.type 
-//                    &&  double_equals(value, rhs.value) 
-//                    //&&  ts == rhs.ts                      // temp disable for gtest
-//                                                    );
-//    }
-//};
-
-//typedef std::map<uint32_t, Signal> MapSignal;
-//typedef std::vector<Signal> VecSignal;

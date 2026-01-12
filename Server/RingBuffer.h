@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <vector>
-//#include <array>
 #include <cstdint>
 
 
@@ -19,12 +18,6 @@ public:
     T read(uint64_t idx) const {
         return buffer[idx & mask];
     }
-
-    //bool can_write(uint64_t count) const {
-    //    uint64_t h = head.load(std::memory_order_relaxed);
-    //    uint64_t t = tail.load(std::memory_order_acquire);
-    //    return (h - t + count) <= Capacity;
-    //}
 
     bool can_write(uint64_t count) const {
         static constexpr uint64_t HIGH_WATER = Capacity * 9 / 10;
@@ -111,26 +104,6 @@ public:
         return true;
     }
 
-    //size_t pop_batch(T* out_array, size_t max_count) {
-    //    const uint64_t t = tail.load(std::memory_order_relaxed);
-    //    const uint64_t h = head.load(std::memory_order_acquire);
-
-    //    if (t == h)
-    //        return 0;
-
-    //    size_t available = h - t;
-    //    size_t to_read = (available < max_count) ? available : max_count;
-
-    //    // TODO: memcpy, if T is POD structure
-    //    for (size_t i = 0; i < to_read; ++i) {
-    //        out_array[i] = buffer[(t + i) & mask];
-    //    }
-
-
-    //    tail.store(t + to_read, std::memory_order_release);
-    //    return to_read;
-    //}
-
     size_t pop_batch(T* out_array, size_t max_count) {
         const uint64_t h = head.load(std::memory_order_acquire);
         const uint64_t t = tail.load(std::memory_order_relaxed);
@@ -160,9 +133,9 @@ public:
         return to_read;
     }
 
-    //void update_tail(uint64_t reader_idx) {
-    //    tail.store(reader_idx, std::memory_order_release);
-    //}
+    void update_tail(uint64_t reader_idx) {
+        tail.store(reader_idx, std::memory_order_release);
+    }
 
     uint64_t get_head() const { return head.load(std::memory_order_acquire); }
 

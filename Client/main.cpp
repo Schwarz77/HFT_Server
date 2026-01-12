@@ -8,7 +8,6 @@ void FixConsoleFreezing() {
     HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
     DWORD prev_mode;
     GetConsoleMode(hInput, &prev_mode);
-    // Отключаем ENABLE_QUICK_EDIT_MODE и ENABLE_EXTENDED_FLAGS
     SetConsoleMode(hInput, prev_mode & ~ENABLE_QUICK_EDIT_MODE);
 }
 #endif
