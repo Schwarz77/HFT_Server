@@ -38,7 +38,7 @@ TEST(RingBufferTest, HighSpeedConcurrency) {
         while (!start_flag) std::this_thread::yield();
         uint64_t batch[1024];
 
-        uint64_t reader_idx = buffer.get_head();
+        uint64_t reader_idx = buffer.get_tail();
 
         while (received_count < TOTAL_EVENTS) {
             uint64_t h = buffer.get_head();

@@ -8,6 +8,7 @@ TEST(AnalyticsTest, RollingVWAPAccuracy) {
     RollingVWAP<WINDOW_SIZE> vwap;
 
     // 1st event (100.0, 2.0); // 100 * 2 / 2 = 100
+    vwap.add(100.0, 2.0); // 100 * 2 / 2 = 100
     EXPECT_NEAR(vwap.value(), 100.0, 0.0001);
 
     // 2nd event
