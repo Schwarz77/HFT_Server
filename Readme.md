@@ -123,7 +123,7 @@ or
 
 ## Benchmark
 
-Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
+Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
 
 |Throughput (EPS) | Configuration |	Complexity | Why the difference?	
 | :--- | :--- | :--- | :--- |
@@ -133,6 +133,24 @@ Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled 
 | 116M | 4 Coins (Runtime Vector) | VWAP_session + VWAP_roll| Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
 | 126M | 1024 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
 | 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
+
+
+## Latency Profile
+
+Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled).
+
+The following metrics represent the system's performance on a Windows environment using the MSVC compiler with AVX2 and LTCG enabled.
+
+| Metric | Value | Description |
+| :--- | :--- | :--- |
+| **Throughput** | **91.00 M events/sec** |
+| **Average Latency** | **772.1 ns** | Mean Latency: Arithmetic average including background noise |
+| **P50 (Median)** | **682 ns** | Deterministic Path: Core logic and hot-path execution |
+| **P99** | **1024 ns** | Burst Limit: Minor cache misses or thread scheduling delay |
+| **P99.9** | **3413 ns** | Extreme Tail: OS jitter or L3 cache pressure |
+| **Max Latency** | **242,690 ns** | Worst Case: System-level interrupts or background tasks |
+
+> **Note:** These results are used as a baseline for upcoming optimizations on Linux/WSL using Clang and CPU pinning.
 
 
 ## Directory Structure
@@ -170,6 +188,7 @@ Environment: Windows 10/11 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled 
 
 ![Server_emulator](Docs/srv1.jpg)
 ![Server_binance](Docs/srv_binance.jpg)
+![Server_P99](Docs/srv_bench99.jpg)
 ![Client](Docs/client1.jpg)
 ![Client_VWAP_roll](Docs/client2.jpg)
 
