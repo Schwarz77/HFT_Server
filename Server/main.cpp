@@ -8,7 +8,7 @@ using time_point = std::chrono::steady_clock::time_point;
 using steady_clock = std::chrono::steady_clock;
 
 
-static Server* g_pServer = NULL;
+static Server* g_pServer = NULL; 
 
 void signal_handler(int s) 
 {

@@ -6,6 +6,10 @@
 #include <chrono>
 #include <Utils.h>
 
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
+
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using error_code = boost::system::error_code;
@@ -24,7 +28,7 @@ const CoinPair coins[] =
     {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
 };
 
-const size_t COIN_CNT = _countof(coins);
+const size_t COIN_CNT = std::size(coins);
 
 double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 
@@ -47,15 +51,62 @@ CoinAnalytics coin_VWAP[COIN_CNT];
 ///////////////////////////////////////////////////////////////////////
 
 
+
 void set_affinity(std::thread& t, int logical_core_id)
 {
+#ifdef _WIN32
     HANDLE handle = t.native_handle();
 
     DWORD_PTR mask = (1ULL << logical_core_id);
-    if (SetThreadAffinityMask(handle, mask) == 0) 
+    if (SetThreadAffinityMask(handle, mask) == 0)
     {
         std::cerr << "\nError setting affinity\n";
     }
+#else
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(logical_core_id, &cpuset);
+    pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset);
+#endif
+
+}
+
+struct LatencySnapshot 
+{
+    std::atomic<uint64_t> total_ticks;
+    std::atomic<uint64_t> count;
+    std::atomic<uint64_t> min_ticks;
+    std::atomic<uint64_t> max_ticks;
+
+    static const size_t BUCKET_SHIFT = 10; // 2^10 = 1024 tics per backet
+    uint64_t buckets[4096] = { 0 };
+    uint64_t buckets_snapshot[4096] = { 0 };
+    std::atomic<bool> snapshot_ready{ false };
+};
+
+
+LatencySnapshot stat_latency;
+
+inline uint64_t rdtsc() 
+{
+    return __rdtsc();
+}
+
+void Server::set_cpu_ghz()
+{
+    auto t1 = std::chrono::steady_clock::now();
+    uint64_t r1 = __rdtsc();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto t2 = std::chrono::steady_clock::now();
+    uint64_t r2 = __rdtsc();
+
+    auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+
+    //std::cout << "\ntsc_ghz " << (double)(r2 - r1) / (double)duration_ns << std::endl;
+
+    m_cpu_ghz = (double)(r2 - r1) / (double)duration_ns;
 }
 
 Server::Server(asio::io_context& io, uint16_t port)
@@ -63,6 +114,7 @@ Server::Server(asio::io_context& io, uint16_t port)
 {
     init_coin_data();
     register_coins();
+    set_cpu_ghz();
 }
 
 Server::~Server() 
@@ -77,6 +129,12 @@ void Server::Start()
     m_event_dispatcher = std::thread(&Server::event_dispatcher, this);
     m_monitor = std::thread(&Server::speed_monitor, this);
     m_producer = std::thread(&Server::producer, this);
+
+#ifdef _WIN32
+    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+#else
+    setpriority(PRIO_PROCESS, 0, -20);
+#endif
 
     set_affinity(m_producer, 0);
     set_affinity(m_hot_dispatcher, 2);
@@ -287,7 +345,11 @@ int Server::GetCoinIndex(std::string& symbol) const
 
 void Server::producer()
 {
+
+#ifdef _WIN32
     SetThreadAffinityMask(GetCurrentThread(), 1 << 0);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+#endif
 
     if (m_data_emulation.load(std::memory_order_acquire))
     {
@@ -327,12 +389,14 @@ void Server::emulator_loop()
         qty_rnd.push_back(qty[i] * 5);
     }
 
-    m_need_reset_vwap.store(true, std::memory_order::release);
+    m_need_reset_vwap.store(true, std::memory_order_release);
 
     while (m_running) 
     {
         if (m_hot_buffer.can_write(size_batch))
         {
+            uint64_t tick_batch = rdtsc();
+
             for (int i = 0; i < size_batch; ++i) {
 
                 int ind = fast_rand_range(COIN_CNT);
@@ -378,7 +442,12 @@ void Server::emulator_loop()
 
                     ev.is_sell = ((i & 1) == 0); //(i % 2 == 0)
 
+                    ev.tick_rcvd = tick_batch;
+
                     cnt++;
+
+                    if (cnt % 10 == 0) 
+                        _mm_pause();   // need for stable mode (low latency), else - Cache Coherency Traffic Storm
                 }
 
             }
@@ -401,9 +470,13 @@ void Server::speed_monitor()
     uint64_t last_head = m_hot_buffer.get_head();
     auto last_time = std::chrono::steady_clock::now();
 
-    while (m_running) {
+    int cnt = 0;
+
+    while (m_running) 
+    {
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        cnt++;
 
         uint64_t current_head = m_hot_buffer.get_head();
         auto current_time = std::chrono::steady_clock::now();
@@ -415,14 +488,94 @@ void Server::speed_monitor()
 
         double speed = delta / seconds;
 
-        double eps = (speed >= 1e6) ? speed / 1e6 : (speed >= 1e3) ? speed / 1e3 : speed;
+        //double eps = (speed >= 1e6) ? speed / 1e6 : (speed >= 1e3) ? speed / 1e3 : speed;
         double total = (current_head >= 1e6) ? current_head / 1e6 : (current_head >= 1e3) ? current_head / 1e3 : current_head;
         std::string mul = (speed >= 1e6) ? " M" : (speed >= 1e3) ? " K" : "";
 
         std::stringstream ss;
+        //ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
+
+////
+//      statistics
+// 
+        // Throughput
+        static uint64_t last_total_count = 0;
+        uint64_t current_total = stat_latency.count.load(std::memory_order_relaxed);
+        uint64_t diff = current_total - last_total_count;
+        last_total_count = current_total;
+
+        uint64_t c = stat_latency.count.exchange(0);
+        uint64_t t_ticks = stat_latency.total_ticks.exchange(0);
+        uint64_t mx_ticks = stat_latency.max_ticks.exchange(0);
+        last_total_count = 0; // Resetting because count reached zero
+
+        //std::stringstream ss;
+        //ss << "Throughput: " << std::fixed << std::setprecision(2) << (diff / 1000000.0) << " M event/sec |";
+        //ss << "Throughput2: " << std::fixed << std::setprecision(2) << (diff / 1000000.0) << " M event/sec |";
+        double eps = (diff >= 1e6) ? diff / 1e6 : (diff >= 1e3) ? diff / 1e3 : diff;
         ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
 
-        std::cout << "\r" << "Throughput: " << std::left << std::setw(50) << ss.view() /*ss.str()*/ << std::flush;
+        // skip first 3 sec to ignore initialization garbage
+        if (cnt < 3) {
+            last_head = current_head;
+            last_time = current_time;
+            continue;
+        }
+
+        if (c > 0) {
+            // k - for ticks to ns
+            double tsc_to_ns = 1.0 / m_cpu_ghz;
+
+            double avg_ns = (static_cast<double>(t_ticks) / c) * tsc_to_ns;
+            double max_ns = static_cast<double>(mx_ticks) * tsc_to_ns;
+
+            ss << " | Avg: " << std::setprecision(1) << avg_ns << " ns";
+            ss << " Max: " << (uint64_t)max_ns << " ns |";
+
+            // Calculating percentiles from buckets
+            if (stat_latency.snapshot_ready.load(std::memory_order_acquire)) {
+                uint64_t total_ev_in_snapshot = 0;
+                for (size_t i = 0; i < 4096; ++i) {
+                    total_ev_in_snapshot += stat_latency.buckets_snapshot[i];
+                }
+
+                if (total_ev_in_snapshot > 0) {
+                    uint64_t acc = 0;
+                    uint64_t p50_ns = 0, p99_ns = 0, p999_ns = 0;
+
+                    for (size_t i = 0; i < 4096; ++i) {
+                        acc += stat_latency.buckets_snapshot[i];
+
+                        // thresholds 50%, 99% è 99.9%
+                        if (p50_ns == 0 && acc >= total_ev_in_snapshot * 0.50) {
+                            // Convert index i to ticks (i << SHIFT) and then to nanoseconds
+                            p50_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                        }
+                        if (p99_ns == 0 && acc >= total_ev_in_snapshot * 0.99) {
+                            p99_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                        }
+                        if (p999_ns == 0 && acc >= total_ev_in_snapshot * 0.999) {
+                            p999_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                        }
+                    }
+
+                    ss << " P50: " << p50_ns << " ns";
+                    ss << " P99: " << p99_ns << " ns";
+                    ss << " P99.9: " << p999_ns << " ns";
+
+                    // non-empty last bucket indicates outliers exceeding 1.2 ms
+                    if (stat_latency.buckets_snapshot[4095] > 0) {
+                        ss << " [!] Outliers: " << stat_latency.buckets_snapshot[4095];
+                    }
+                }
+
+                stat_latency.snapshot_ready.store(false, std::memory_order_release);
+            }
+        }
+//
+////
+
+        std::cout << "\r" << "Throughput: " << std::left << std::setw(150) << ss.view() << std::flush;
 
         last_head = current_head;
         last_time = current_time;
@@ -527,7 +680,7 @@ void Server::binance_stream()
 
     std::string url = "wss://fstream.binance.com/ws";
 
-    m_need_reset_vwap.store(true, std::memory_order::release);
+    m_need_reset_vwap.store(true, std::memory_order_release);
 
     while (m_running)
     {
@@ -633,7 +786,7 @@ void Server::binance_stream()
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::cerr << "\n[Binance] Reconnecting...\n";
 
-            m_need_reset_vwap.store(true, std::memory_order::release);
+            m_need_reset_vwap.store(true, std::memory_order_release);
         }
 
     }
@@ -642,20 +795,32 @@ void Server::binance_stream()
 
 void Server::hot_dispatcher() 
 {
+
+
+#ifdef _WIN32
     SetThreadAffinityMask(GetCurrentThread(), 1 << 2);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+#endif
 
     uint64_t reader_idx = m_hot_buffer.get_tail();
 
     int empty_cycles = 0;
 
+    uint64_t local_total_ticks = 0;
+    uint64_t local_count = 0;
+    uint64_t count = 0;
+
     std::vector<WhaleEvent> bach_to_client(1024);
     uint64_t cnt_event_to_client = 0;
 
-    bool ext_vwap = m_ext_vwap.load(std::memory_order::acquire);
+    bool ext_vwap = m_ext_vwap.load(std::memory_order_acquire);
 
     const uint64_t overload_val = m_hot_buffer.capacity() * 0.9;
 
     uint64_t last_tail_update = reader_idx;
+
+    uint64_t local_max_ticks = 0;
+    uint64_t local_buckets[4096] = { 0 };
 
     while (m_running) {
         uint64_t h = m_hot_buffer.get_head();
@@ -673,6 +838,8 @@ void Server::hot_dispatcher()
 
         if (h > reader_idx) 
         {
+            uint64_t batch_now = __rdtsc();
+
             for (size_t i = 0; i < to_process; ++i)
             {
                 const auto& ev = m_hot_buffer.read(reader_idx++);
@@ -680,11 +847,33 @@ void Server::hot_dispatcher()
                 if (ev.index_symbol < 0 || ev.index_symbol >= COIN_CNT)
                     continue;
 
+                if (count > 300'000'000) // begin measuring only after warm-up
+                {   
+                    uint64_t lat_ticks = batch_now - ev.tick_rcvd;
+
+                    local_total_ticks += lat_ticks;
+
+                    if (lat_ticks > local_max_ticks) 
+                        local_max_ticks = lat_ticks;
+
+                    // Histogram bucket: 10-bit shift (~1024 ticks or ~300-400 ns)
+                    size_t b_idx = static_cast<size_t>(lat_ticks >> 10);
+                    if (b_idx > 4095) 
+                        b_idx = 4095; // Values > 1.2 ms map to the overflow bucket
+                    local_buckets[b_idx]++;
+                }
+                local_count++;
+                count++;
+
+
+
                 double pv = ev.total_usd();
 
                 auto& c = coin_VWAP[ev.index_symbol];
 
-                //if (m_need_reset_vwap.load(std::memory_order::acquire))
+
+
+                //if (m_need_reset_vwap.load(std::memory_order_acquire))
                 //{
                 //    c.session.reset();
                 //    //c.signed_flow = 0;
@@ -715,6 +904,29 @@ void Server::hot_dispatcher()
 
                 }
 
+            }
+
+            // Reset and sync local stats every 1M events
+            if (local_count >= 1'000'000) 
+            {
+                stat_latency.total_ticks.fetch_add(local_total_ticks, std::memory_order_relaxed);
+                stat_latency.count.fetch_add(local_count, std::memory_order_relaxed);
+
+                uint64_t current_max = stat_latency.max_ticks.load(std::memory_order_relaxed);
+                while (local_max_ticks > current_max &&
+                    !stat_latency.max_ticks.compare_exchange_weak(current_max, local_max_ticks));
+
+                if (!stat_latency.snapshot_ready.load(std::memory_order_relaxed)) {
+                    for (size_t j = 0; j < 4096; ++j) {
+                        stat_latency.buckets_snapshot[j] = local_buckets[j];
+                        local_buckets[j] = 0;
+                    }
+                    stat_latency.snapshot_ready.store(true, std::memory_order_release);
+                }
+
+                local_total_ticks = 0;
+                local_count = 0;
+                local_max_ticks = 0;
             }
 
             if (reader_idx - last_tail_update >= 512/*1024*/)
@@ -770,7 +982,10 @@ void Server::hot_dispatcher()
 
 void Server::event_dispatcher()
 {
+#ifdef _WIN32
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
+#endif
+
 
     // for hold - prevent row_ptr invalidation 
     std::vector<std::shared_ptr<Session>> clients_shared; 

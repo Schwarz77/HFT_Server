@@ -16,6 +16,7 @@ target_include_directories(
     ServerCore
     PUBLIC 
         ${CMAKE_CURRENT_SOURCE_DIR}
+		"${PROJECT_SOURCE_DIR}/Include"
 )
 
 target_link_libraries(
@@ -32,11 +33,13 @@ target_link_libraries(
 		ixwebsocket::ixwebsocket
 		OpenSSL::SSL
 		OpenSSL::Crypto
-		ZLIB::ZLIB
-		bcrypt
-		crypt32
-		ws2_32			
 )
+
+if(WIN32)
+    target_link_libraries(ServerCore PRIVATE bcrypt crypt32 ws2_32)
+else()
+    target_link_libraries(ServerCore PRIVATE pthread dl)
+endif()
 
 add_executable(Server main.cpp)
 
@@ -71,8 +74,11 @@ if(MSVC)
     endforeach()
 
 else()
-    target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native -flto)
-    target_compile_options(Server PRIVATE -Wall -O3 -march=native -flto)
+    #target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native -flto)
+    #target_compile_options(Server PRIVATE -Wall -O3 -march=native -flto)
+	target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native)
+    target_compile_options(Server PRIVATE -Wall -O3 -march=native)
+	target_link_libraries(Server PRIVATE pthread dl)
 endif()
 
 
