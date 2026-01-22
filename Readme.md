@@ -1,6 +1,6 @@
 # High-Frequency Market Data Analytics Engine
 
-A high-performance C++ server designed for real-time monitoring and analysis of "whale" trades (large-volume transactions) on cryptocurrency exchanges. The system is engineered for low-latency data processing, utilizing lock-free structures and asynchronous I/O to handle high-throughput market data feeds.
+A high-performance cross-platform C++ server designed for real-time monitoring and analysis of "whale" trades (large-volume transactions) on cryptocurrency exchanges. The system is engineered for low-latency data processing, utilizing lock-free structures and asynchronous I/O to handle high-throughput market data feeds.
 The system performs real-time VWAP calculations and whale detection at 100M+ Events Per Second (EPS).
 
 The engine supports two distinct data sources tailored for different use cases:
