@@ -61,9 +61,10 @@ void set_affinity(std::thread& t, int logical_core_id)
 #else
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(core_id, &cpuset);
-    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    CPU_SET(logical_core_id, &cpuset);
+    pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset);
 #endif
+
 }
 
 struct LatencySnapshot 
