@@ -34,8 +34,9 @@ struct MarketEvent {
     char reserved[16]; //char symbol[16]; // not used
     int index_symbol;
     uint64_t symbol_hash;
+    uint64_t tick_rcvd;
 
-    char pad[11];
+    char pad[3];
 
     inline double total_usd() const { return price * quantity; }
 };
@@ -92,6 +93,9 @@ private:
 
     void register_coins();
     void init_coin_data();
+    void set_cpu_ghz();
+
+    inline double Tick2Ts(uint64_t ticks) { return static_cast<double>(ticks) / m_cpu_ghz; }
 
 protected:
 
@@ -125,5 +129,7 @@ protected:
     //std::vector<double> m_whale_global_treshold;
     //std::vector<CoinAnalytics> m_coin_VWAP;
     std::once_flag m_coins_initialized;
+
+    double m_cpu_ghz;
 
 };
