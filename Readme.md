@@ -143,7 +143,7 @@ The following metrics represent the system's performance on a Windows environmen
 
 | Metric | Value | Description |
 | :--- | :--- | :--- |
-| **Throughput** | **91.00 M events/sec** |
+| **Throughput** | **91.00 M events/sec** | Stable Operational Throughput
 | **Average Latency** | **772.1 ns** | Mean Latency: Arithmetic average including background noise |
 | **P50 (Median)** | **682 ns** | Deterministic Path: Core logic and hot-path execution |
 | **P99** | **1024 ns** | Burst Limit: Minor cache misses or thread scheduling delay |
