@@ -16,6 +16,7 @@ target_include_directories(
     ServerCore
     PUBLIC 
         ${CMAKE_CURRENT_SOURCE_DIR}
+		"${PROJECT_SOURCE_DIR}/Include"
 )
 
 target_link_libraries(
@@ -73,8 +74,11 @@ if(MSVC)
     endforeach()
 
 else()
-    target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native -flto)
-    target_compile_options(Server PRIVATE -Wall -O3 -march=native -flto)
+    #target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native -flto)
+    #target_compile_options(Server PRIVATE -Wall -O3 -march=native -flto)
+	target_compile_options(ServerCore PRIVATE -Wall -O3 -march=native)
+    target_compile_options(Server PRIVATE -Wall -O3 -march=native)
+	target_link_libraries(Server PRIVATE pthread dl)
 endif()
 
 

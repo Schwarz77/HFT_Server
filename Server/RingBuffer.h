@@ -3,6 +3,7 @@
 #include <atomic>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 
 
 template<typename T, uint64_t Capacity>

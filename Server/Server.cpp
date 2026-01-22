@@ -6,6 +6,10 @@
 #include <chrono>
 #include <Utils.h>
 
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
+
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using error_code = boost::system::error_code;
@@ -24,7 +28,7 @@ const CoinPair coins[] =
     {"BTCUSDT", 96000.0}, {"ETHUSDT", 2700.0}, {"SOLUSDT", 180.0}, {"BNBUSDT", 600.0}
 };
 
-const size_t COIN_CNT = _countof(coins);
+const size_t COIN_CNT = std::size(coins);
 
 double whale_global_treshold[COIN_CNT] = { 100000, 70000, 50000, 60000 };
 
@@ -126,7 +130,11 @@ void Server::Start()
     m_monitor = std::thread(&Server::speed_monitor, this);
     m_producer = std::thread(&Server::producer, this);
 
+#ifdef _WIN32
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+#else
+    setpriority(PRIO_PROCESS, 0, -20);
+#endif
 
     set_affinity(m_producer, 0);
     set_affinity(m_hot_dispatcher, 2);
@@ -381,7 +389,7 @@ void Server::emulator_loop()
         qty_rnd.push_back(qty[i] * 5);
     }
 
-    m_need_reset_vwap.store(true, std::memory_order::release);
+    m_need_reset_vwap.store(true, std::memory_order_release);
 
     while (m_running) 
     {
@@ -672,7 +680,7 @@ void Server::binance_stream()
 
     std::string url = "wss://fstream.binance.com/ws";
 
-    m_need_reset_vwap.store(true, std::memory_order::release);
+    m_need_reset_vwap.store(true, std::memory_order_release);
 
     while (m_running)
     {
@@ -778,7 +786,7 @@ void Server::binance_stream()
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::cerr << "\n[Binance] Reconnecting...\n";
 
-            m_need_reset_vwap.store(true, std::memory_order::release);
+            m_need_reset_vwap.store(true, std::memory_order_release);
         }
 
     }
@@ -805,7 +813,7 @@ void Server::hot_dispatcher()
     std::vector<WhaleEvent> bach_to_client(1024);
     uint64_t cnt_event_to_client = 0;
 
-    bool ext_vwap = m_ext_vwap.load(std::memory_order::acquire);
+    bool ext_vwap = m_ext_vwap.load(std::memory_order_acquire);
 
     const uint64_t overload_val = m_hot_buffer.capacity() * 0.9;
 
@@ -865,7 +873,7 @@ void Server::hot_dispatcher()
 
 
 
-                //if (m_need_reset_vwap.load(std::memory_order::acquire))
+                //if (m_need_reset_vwap.load(std::memory_order_acquire))
                 //{
                 //    c.session.reset();
                 //    //c.signed_flow = 0;
@@ -974,7 +982,10 @@ void Server::hot_dispatcher()
 
 void Server::event_dispatcher()
 {
+#ifdef _WIN32
     SetThreadAffinityMask(GetCurrentThread(), 1 << 4);
+#endif
+
 
     // for hold - prevent row_ptr invalidation 
     std::vector<std::shared_ptr<Session>> clients_shared; 

@@ -10,13 +10,16 @@ void FixConsoleFreezing() {
     GetConsoleMode(hInput, &prev_mode);
     SetConsoleMode(hInput, prev_mode & ~ENABLE_QUICK_EDIT_MODE);
 }
+
 #endif
 
 int main(int argc, char* argv[])
 {
     try
     {
+#ifdef _WIN32
         FixConsoleFreezing();
+#endif
 
         std::string host = "127.0.0.1";
         uint16_t port = 6000;

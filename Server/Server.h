@@ -14,7 +14,6 @@
 #include <deque>
 #include <atomic>
 #include <random>
-#include <xcall_once.h>
 
 #include <simdjson.h>
 #include <ixwebsocket/IXNetSystem.h>
@@ -63,14 +62,14 @@ public:
     void RegisterSession(std::shared_ptr<Session> s);
     void UnregisterExpired();
 
-    void EnableDataEmulation(bool is_enable) { m_data_emulation.store(is_enable, std::memory_order::release); };
-    bool IsEnableDataEmulation() { return m_data_emulation.load(std::memory_order::acquire); }
+    void EnableDataEmulation(bool is_enable) { m_data_emulation.store(is_enable, std::memory_order_release); };
+    bool IsEnableDataEmulation() { return m_data_emulation.load(std::memory_order_acquire); }
 
     void EnableShowLogMsg(bool is_enable) { m_show_log_msg = is_enable; }
     bool IsShowLogMsg() { return m_show_log_msg; }
 
-    void SetExtCalcVWAP(bool is_ext) { m_ext_vwap.store(is_ext, std::memory_order::release); };
-    bool IsExtCalcVWAP() { return m_ext_vwap.load(std::memory_order::acquire); }
+    void SetExtCalcVWAP(bool is_ext) { m_ext_vwap.store(is_ext, std::memory_order_release); };
+    bool IsExtCalcVWAP() { return m_ext_vwap.load(std::memory_order_acquire); }
 
     boost::asio::io_context& GetIoContext() { return m_io; }
 

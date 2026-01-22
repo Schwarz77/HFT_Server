@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 
-if (NOT POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
+#if (NOT POLICY CMP0167)
+#    cmake_policy(SET CMP0167 NEW)
+#endif()
 
 project(HFT_Server LANGUAGES CXX)
 
@@ -15,6 +15,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(Boost_NO_BOOST_CMAKE OFF)
 
 #find_package(Boost REQUIRED CONFIG COMPONENTS system thread asio format)
+
+if(NOT WIN32)
+    if(MSVC)
+        message(FATAL_ERROR "Critical Error: MSVC is trying to build Linux target!")
+    endif()
+endif()
 
 if (WIN32)
     # --- Windows (VCPKG) ---

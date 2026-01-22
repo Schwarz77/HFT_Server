@@ -6,4 +6,4 @@
 /.vs
 /build_cmd
 /build_test
-/out/build/WSL-Clang-Release
+/out

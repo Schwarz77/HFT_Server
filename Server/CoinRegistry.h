@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstring>
 
 struct CoinNode {
     uint64_t key = 0;

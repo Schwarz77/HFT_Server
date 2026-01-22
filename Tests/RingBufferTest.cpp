@@ -6,6 +6,7 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <immintrin.h>
 
 
 TEST(RingBufferTest, HighSpeedConcurrency) {
