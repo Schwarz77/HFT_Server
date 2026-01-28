@@ -16,7 +16,7 @@ public:
         tail.store(0, std::memory_order_relaxed);
     }
 
-    T read(uint64_t idx) const {
+    const T& read(uint64_t idx) const {
         return buffer[idx & mask];
     }
 
@@ -28,6 +28,26 @@ public:
         uint64_t used = h - t;
 
         return (used + count) <= HIGH_WATER;
+    }
+
+    T* get_write_ptr() {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        return &buffer[h & mask];
+    }
+
+    T* get_write_ptr(size_t& count) {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        uint32_t write_pos = h & mask;
+
+        size_t space_to_end = Capacity - write_pos;
+        if (count > space_to_end) count = space_to_end;
+
+        return &buffer[write_pos];
+    }
+
+    void commit_write(size_t count) {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        head.store(h + count, std::memory_order_release);
     }
 
     void push_batch(const T* items, size_t count) {
@@ -82,15 +102,21 @@ public:
     uint64_t get_head() const { return head.load(std::memory_order_acquire); }
     uint64_t get_tail() const { return tail.load(std::memory_order_acquire); }
 
+    uint64_t get_used_size() const {
+        uint64_t h = head.load(std::memory_order_relaxed);
+        uint64_t t = tail.load(std::memory_order_acquire);
+        return h - t;
+    }
+
     static constexpr uint64_t capacity() noexcept {
         return Capacity;
     }
 
 private:
-
-    alignas(64) std::atomic<uint64_t> head;
     std::vector<T> buffer;
     const uint64_t mask = Capacity - 1;
+	alignas(64) std::atomic<uint64_t> head;
+    uint8_t padding[56];
     alignas(64) std::atomic<uint64_t> tail;
 };
 
