@@ -121,36 +121,38 @@ or
 ```
 
 
-## Benchmark
+## Performance Metrics
 
-Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled)
+Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | MSVC AVX2. Threads pinned to physical cores via WinAPI.
 
-|Throughput (EPS) | Configuration |	Complexity | Why the difference?	
-| :--- | :--- | :--- | :--- |
-| 141M | 4 Coins (Fixed Array) | VWAP_session |	Maximum Optimization: Compiler uses constant folding and direct memory addressing.
-| 117M | 4 Coins (Fixed Array) | VWAP_session + VWAP_roll |	Maximum Optimization. Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
-| 129M | 4 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
-| 116M | 4 Coins (Runtime Vector) | VWAP_session + VWAP_roll| Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
-| 126M | 1024 Coins (Runtime Vector) | VWAP_session | Computational Weight: Managing rolling windows (sliding buckets) increases the number of memory writes per event.
-| 90M | 1024 Coins (Runtime Vector) | VWAP_session + VWAP_roll| O(1) Scalability: Performance remains high even with 1024 coins, proving that the dispatcher logic is independent of the number of instruments.
+**1. Ultra-Low Latency Mode (Production-ready)**
 
+Optimized for predictability and immediate event reaction. Throughput is balanced to prevent buffer buildup.
 
-## Latency Profile
-
-Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | Compiled with MSVC (AVX2 enabled).
-
-The following metrics represent the system's performance on a Windows environment using the MSVC compiler with AVX2 and LTCG enabled.
-
-| Metric | Value | Description |
+|Metric | Value | Technical Context |
 | :--- | :--- | :--- |
-| **Throughput** | **91.00 M events/sec** | Stable Operational Throughput
-| **Average Latency** | **772.1 ns** | Mean Latency: Arithmetic average including background noise |
-| **P50 (Median)** | **682 ns** | Deterministic Path: Core logic and hot-path execution |
-| **P99** | **1024 ns** | Burst Limit: Minor cache misses or thread scheduling delay |
-| **P99.9** | **3413 ns** | Extreme Tail: OS jitter or L3 cache pressure |
-| **Max Latency** | **242,690 ns** | Worst Case: System-level interrupts or background tasks |
+| **Throughput** | **110 - 120 M events/sec** | Sustainable high-speed flow|
+| **P50 (Median)** | **341 ns** | Core logic execution + Inter-thread handoff |
+| **P99** | **682 ns** | Rare L1/L2 cache misses |
+| **P99.9** | **3072 ns** | OS Jitter / Hardware interrupts |
 
-> **Note:** These results are used as a baseline for upcoming optimizations on Linux/WSL using Clang and CPU pinning.
+![Server_stable](Docs/srv_stable.jpg)
+
+**2. Extreme Stress Test (Throughput Limit)**
+
+In this mode, we push the lock-free ring buffer to its physical bandwidth limit.
+
+| Metric | Value | Note |
+| :--- | :--- | :--- |
+| **Max Throughput** | **190.0 - 200.5 M events/sec** | **Top-tier performance for 10GbE+ scenarios** |
+| **Average Latency** | **2.5 µs** | Increased due to constant micro-queueing |
+| **P50 (Median)** | **2.4 µs** | Time spent in buffer at peak saturation |
+| **P99** | **3.0 µs** | Consistent processing even under heavy load |
+
+> **Note:** At 200M events/sec, the system is highly sensitive to OS scheduling. To maintain sub-microsecond P99.9, it is recommended to run the engine on isolated cores with high-priority threads.
+
+![Server_max_throughput](Docs/srv_max.jpg)
+
 
 
 ## Directory Structure
@@ -186,9 +188,8 @@ The following metrics represent the system's performance on a Windows environmen
 
 # Examples of use
 
-![Server_emulator](Docs/srv1.jpg)
+![Server_stable_VR](Docs/srv_stable_VR.jpg)
 ![Server_binance](Docs/srv_binance.jpg)
-![Server_P99](Docs/srv_bench99.jpg)
 ![Client](Docs/client1.jpg)
 ![Client_VWAP_roll](Docs/client2.jpg)
 

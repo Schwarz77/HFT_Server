@@ -3,54 +3,43 @@
 #include <stdint.h>
 
 
-struct CoinPair
+struct alignas(64) CoinPair
 {
     char symbol[16];
     double price;
 };
 
 
+struct alignas(16) PriceQty {
+    double pv;
+    double v;
+};
+
 template<int N>
 struct RollingVWAP {
-    double pv[N];
-    double v[N];
-    int    pos = 0;
-    int    cnt = 0;
-
+    alignas(64) PriceQty data[N] = { 0 };
+    int pos = 0;
     double sum_pv = 0.0;
     double sum_v = 0.0;
-
+    
     inline void add(double price, double qty) {
-        double x = price * qty;
-
-        if (cnt < N) {
-            pv[pos] = x;
-            v[pos] = qty;
-            sum_pv += x;
-            sum_v += qty;
-            cnt++;
-        }
-        else {
-            sum_pv += x - pv[pos];
-            sum_v += qty - v[pos];
-            pv[pos] = x;
-            v[pos] = qty;
-        }
-
-        pos++;
-        if (pos == N) pos = 0;
+        const double x = price * qty;
+        sum_pv += (x - data[pos].pv);
+        sum_v += (qty - data[pos].v);
+        data[pos] = { x, qty };
+        if (++pos >= N) [[unlikely]] pos = 0;
     }
 
     inline double value() const {
-        return (sum_v > 0.0) ? (sum_pv / sum_v) : 0.0;
+        return (sum_v > 0.0000001) ? (sum_pv / sum_v) : 0.0;
     }
 
     inline void reset() {
-        pos = cnt = 0;
+        for (int i = 0; i < N; ++i) data[i].pv = data[i].v = 0.0;
         sum_pv = sum_v = 0.0;
+        pos = 0;
     }
 };
-
 
 struct SessionVWAP {
     double pv = 0.0;
@@ -70,7 +59,7 @@ struct SessionVWAP {
     }
 };
 
-struct CoinAnalytics {
+struct alignas(64) CoinAnalytics {
     SessionVWAP          session;
     RollingVWAP<50>      roll50;
     //double signed_flow = 0;
