@@ -81,8 +81,6 @@ struct LatencySnapshot
 {
     std::atomic<uint64_t> total_ticks;
     std::atomic<uint64_t> count;
-    std::atomic<uint64_t> min_ticks;
-    std::atomic<uint64_t> max_ticks;
 
     static const size_t BUCKET_SHIFT = 10; // 2^10 = 1024 tics per backet
     uint64_t buckets[4096] = { 0 };
@@ -477,10 +475,16 @@ void Server::emulator_loop()
 
                     cnt++;
 
-                    //if(cnt & 7 == 0)    // 1 per 8 // if (cnt % 10 == 0)
-                    //if (cnt & 127 == 0) // 1 per 128 // if (cnt % 100 == 0)
-                    //if (cnt % 10 == 0)
-                    //    _mm_pause();   // need for stable mode (low latency), else - Cache Coherency Traffic Storm
+
+                        // need for stable mode (low latency), else - Cache Coherency Traffic Storm
+
+                    ////if(cnt & 7 == 0)  // 1 per 8 
+                    ////if (cnt & 127 == 0) // 1 per 128
+                    ////if (cnt % 2 == 0) // with it : Throughput: 94-97M     P50: 339-679 ns P99: 1018-3056 ns   (WSL at Win10 core-i7)
+                    if (cnt % 10 == 0)    // with it : Throughput: 110-120M   P50: 341 ns     P99: 682 ns         (Win10 core-i7)
+                    {
+                        _mm_pause();   
+                    }
                 }
 
             }
@@ -520,101 +524,112 @@ void Server::speed_monitor()
         uint64_t current_head = m_hot_buffer.get_head();
         auto current_time = std::chrono::steady_clock::now();
 
-        uint64_t delta = current_head - last_head;
+        if (!m_data_emulation)
+        {
+            uint64_t delta = current_head - last_head;
 
-        std::chrono::duration<double> duration = current_time - last_time;
-        double seconds = duration.count();
+            std::chrono::duration<double> duration = current_time - last_time;
+            double seconds = duration.count();
 
-        double speed = delta / seconds;
+            double speed = delta / seconds;
 
-        //double eps = (speed >= 1e6) ? speed / 1e6 : (speed >= 1e3) ? speed / 1e3 : speed;
-        double total = (current_head >= 1e6) ? current_head / 1e6 : (current_head >= 1e3) ? current_head / 1e3 : current_head;
-        std::string mul = (speed >= 1e6) ? " M" : (speed >= 1e3) ? " K" : "";
+            double eps = (speed >= 1e6) ? speed / 1e6 : (speed >= 1e3) ? speed / 1e3 : speed;
+            double total = (current_head >= 1e6) ? current_head / 1e6 : (current_head >= 1e3) ? current_head / 1e3 : current_head;
+            std::string mul = (speed >= 1e6) ? " M" : (speed >= 1e3) ? " K" : "";
 
-        std::stringstream ss;
-        //ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
 
-////
-//      statistics
-// 
-        // Throughput
-        static uint64_t last_total_count = 0;
-        uint64_t current_total = stat_latency.count.load(std::memory_order_relaxed);
-        uint64_t diff = current_total - last_total_count;
-        last_total_count = current_total;
-
-        uint64_t c = stat_latency.count.exchange(0);
-        uint64_t t_ticks = stat_latency.total_ticks.exchange(0);
-        uint64_t mx_ticks = stat_latency.max_ticks.exchange(0);
-        last_total_count = 0; // Resetting because count reached zero
-
-        //std::stringstream ss;
-        //ss << "Throughput: " << std::fixed << std::setprecision(2) << (diff / 1000000.0) << " M event/sec |";
-        //ss << "Throughput2: " << std::fixed << std::setprecision(2) << (diff / 1000000.0) << " M event/sec |";
-        double eps = (diff >= 1e6) ? diff / 1e6 : (diff >= 1e3) ? diff / 1e3 : diff;
-        ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
-
-        // skip first 3 sec to ignore initialization garbage
-        if (cnt < 3) {
-            last_head = current_head;
-            last_time = current_time;
-            continue;
+            std::cout << "\r" << "Throughput: " << std::left << std::setw(100) << ss.view() << std::flush;
         }
+        else
+        {
+            // Throughput and statistics 
 
-        if (c > 0) {
-            // k - for ticks to ns
-            double tsc_to_ns = 1.0 / m_cpu_ghz;
+            static uint64_t last_total_count = 0;
+            uint64_t current_total = stat_latency.count.load(std::memory_order_relaxed);
+            uint64_t diff = current_total - last_total_count;
+            last_total_count = current_total;
 
-            double avg_ns = (static_cast<double>(t_ticks) / c) * tsc_to_ns;
-            double max_ns = static_cast<double>(mx_ticks) * tsc_to_ns;
+            uint64_t c = stat_latency.count.exchange(0);
+            uint64_t t_ticks = stat_latency.total_ticks.exchange(0);
+            //uint64_t mx_ticks = stat_latency.max_ticks.exchange(0);
+            last_total_count = 0; // Resetting because count reached zero
 
-            ss << " | Avg: " << std::setprecision(1) << avg_ns << " ns";
-            ss << " Max: " << (uint64_t)max_ns << " ns |";
 
-            // Calculating percentiles from buckets
-            if (stat_latency.snapshot_ready.load(std::memory_order_acquire)) {
-                uint64_t total_ev_in_snapshot = 0;
-                for (size_t i = 0; i < 4096; ++i) {
-                    total_ev_in_snapshot += stat_latency.buckets_snapshot[i];
-                }
+            double eps = (diff >= 1e6) ? diff / 1e6 : (diff >= 1e3) ? diff / 1e3 : diff;
+            std::string mul = (diff >= 1e6) ? " M" : (diff >= 1e3) ? " K" : "";
 
-                if (total_ev_in_snapshot > 0) {
-                    uint64_t acc = 0;
-                    uint64_t p50_ns = 0, p99_ns = 0, p999_ns = 0;
+            std::stringstream ss;
 
-                    for (size_t i = 0; i < 4096; ++i) {
-                        acc += stat_latency.buckets_snapshot[i];
+            ss << std::fixed << std::setprecision(2) << eps << mul << " event/sec | " << "Total: " << current_head << " events";
 
-                        // thresholds 50%, 99% è 99.9%
-                        if (p50_ns == 0 && acc >= total_ev_in_snapshot * 0.50) {
-                            // Convert index i to ticks (i << SHIFT) and then to nanoseconds
-                            p50_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
-                        }
-                        if (p99_ns == 0 && acc >= total_ev_in_snapshot * 0.99) {
-                            p99_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
-                        }
-                        if (p999_ns == 0 && acc >= total_ev_in_snapshot * 0.999) {
-                            p999_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
-                        }
-                    }
-
-                    ss << " P50: " << p50_ns << " ns";
-                    ss << " P99: " << p99_ns << " ns";
-                    ss << " P99.9: " << p999_ns << " ns";
-
-                    // non-empty last bucket indicates outliers exceeding 1.2 ms
-                    if (stat_latency.buckets_snapshot[4095] > 0) {
-                        ss << " [!] Outliers: " << stat_latency.buckets_snapshot[4095];
-                    }
-                }
-
-                stat_latency.snapshot_ready.store(false, std::memory_order_release);
+            // skip first 3 sec to ignore initialization garbage
+            if (cnt < 3) {
+                last_head = current_head;
+                last_time = current_time;
+                continue;
             }
-        }
-//
-////
 
-        std::cout << "\r" << "Throughput: " << std::left << std::setw(150) << ss.view() << std::flush;
+            if (c > 0) 
+            {
+                // k - for ticks to ns
+                double tsc_to_ns = 1.0 / m_cpu_ghz;
+
+                double avg_ns = (static_cast<double>(t_ticks) / c) * tsc_to_ns;
+                //double max_ns = static_cast<double>(mx_ticks) * tsc_to_ns;
+
+                ss << " | Avg: " << std::setprecision(1) << avg_ns << " ns";
+                //ss << " Max: " << (uint64_t)max_ns << " ns |";
+
+                // Calculating percentiles from buckets
+                if (stat_latency.snapshot_ready.load(std::memory_order_acquire)) 
+                {
+                    uint64_t total_ev_in_snapshot = 0;
+                    for (size_t i = 0; i < 4096; ++i) 
+                    {
+                        total_ev_in_snapshot += stat_latency.buckets_snapshot[i];
+                    }
+
+                    if (total_ev_in_snapshot > 0) 
+                    {
+                        uint64_t acc = 0;
+                        uint64_t p50_ns = 0, p99_ns = 0, p999_ns = 0;
+
+                        for (size_t i = 0; i < 4096; ++i) 
+                        {
+                            acc += stat_latency.buckets_snapshot[i];
+
+                            // thresholds 50%, 99% è 99.9%
+                            if (p50_ns == 0 && acc >= total_ev_in_snapshot * 0.50) {
+                                // Convert index i to ticks (i << SHIFT) and then to nanoseconds
+                                p50_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                            }
+                            if (p99_ns == 0 && acc >= total_ev_in_snapshot * 0.99) {
+                                p99_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                            }
+                            if (p999_ns == 0 && acc >= total_ev_in_snapshot * 0.999) {
+                                p999_ns = static_cast<uint64_t>((i << stat_latency.BUCKET_SHIFT) * tsc_to_ns);
+                            }
+                        }
+
+                        ss << " P50: " << p50_ns << " ns";
+                        ss << " P99: " << p99_ns << " ns";
+                        ss << " P99.9: " << p999_ns << " ns";
+
+                        // non-empty last bucket indicates outliers exceeding 1.2 ms
+                        if (stat_latency.buckets_snapshot[4095] > 0) {
+                            ss << " [!] Outliers: " << stat_latency.buckets_snapshot[4095];
+                        }
+                    }
+
+                    stat_latency.snapshot_ready.store(false, std::memory_order_release);
+                }
+            }
+
+            std::cout << "\r" << "Throughput: " << std::left << std::setw(140) << ss.view() << std::flush;
+        }
+
 
         last_head = current_head;
         last_time = current_time;
@@ -851,9 +866,11 @@ void Server::hot_dispatcher()
     uint64_t local_count = 0;
     uint64_t local_buckets[4096] = { 0 };
 
-    while (m_running) {
+    while (m_running) 
+    {
         // we only read Head when we have actually processed all the old stuff
-        if (reader_idx >= cached_h) {
+        if (reader_idx >= cached_h) 
+        {
             cached_h = m_hot_buffer.get_head();
             if (cached_h == reader_idx) {
                 _mm_pause();
@@ -862,10 +879,12 @@ void Server::hot_dispatcher()
         }
 
         size_t avail_read = cached_h - reader_idx;
-        size_t to_process = (avail_read > 1024) ? 1024 : avail_read;
+        //size_t to_process = (avail_read > 1024) ? 1024 : avail_read;
+        size_t to_process = (avail_read > 64) ? 64 : avail_read;
 
 
-        if (!m_event_buffer.can_write(to_process)) {
+        if (!m_event_buffer.can_write(to_process)) 
+        {
             _mm_pause();
             continue;
         }
@@ -877,21 +896,22 @@ void Server::hot_dispatcher()
         for (size_t i = 0; i < to_process; ++i) {
             const auto& ev = m_hot_buffer.read(reader_idx++);
 
-            // PREFETCH coin_VWAP for 16 steps
-            if (i + 16 < to_process) 
-            {
-                uint32_t next_sym = m_hot_buffer.read(reader_idx + 16).index_symbol;
-
-#if defined(_MSC_VER)
-                _mm_prefetch((const char*)&coin_VWAP[next_sym], _MM_HINT_T0);
-#else
-                __builtin_prefetch(&coin_VWAP[next_sym], 1, 3);
-#endif
-            }
+//            // PREFETCH coin_VWAP for 16 steps
+//            if (i + 16 < to_process) 
+//            {
+//                uint32_t next_sym = m_hot_buffer.read(reader_idx + 16).index_symbol;
+//
+//#if defined(_MSC_VER)
+//                _mm_prefetch((const char*)&coin_VWAP[next_sym], _MM_HINT_T0);
+//#else
+//                __builtin_prefetch(&coin_VWAP[next_sym], 1, 3);
+//#endif
+//            }
 
             auto& c = coin_VWAP[ev.index_symbol];
             c.session.add(ev.price, ev.quantity);
-            if (ext_vwap) c.roll50.add(ev.price, ev.quantity);
+            if (ext_vwap) 
+                c.roll50.add(ev.price, ev.quantity);
 
             uint64_t lat_ticks = batch_now - ev.tick_rcvd;
             local_total_ticks += lat_ticks;
@@ -899,7 +919,9 @@ void Server::hot_dispatcher()
             local_buckets[(b_idx > 4095) ? 4095 : b_idx]++;
             local_count++;
 
-            if (ev.price * ev.quantity >= whale_global_treshold[ev.index_symbol]) [[unlikely]] {
+            // Whale 
+            if (ev.price * ev.quantity >= whale_global_treshold[ev.index_symbol]) [[unlikely]] 
+            {
                 WhaleEvent& we = write_ptr[whales_found++];
                 we.index_symbol = ev.index_symbol;
                 we.price = ev.price;
@@ -919,13 +941,13 @@ void Server::hot_dispatcher()
             m_event_buffer.commit_write(whales_found);
         }
 
-        if (reader_idx - last_tail_update >= 65536) 
+        if (reader_idx - last_tail_update >= 1024 /*65536*/) 
         {
             m_hot_buffer.update_tail(reader_idx);
             last_tail_update = reader_idx;
 
-            // Reset and sync local stats every 1M events
-            if (local_count >= 1'000'000) 
+            // Reset and sync local stats every 10M events
+            if (local_count >= 10'000'000)
             {
                 stat_latency.total_ticks.fetch_add(local_total_ticks, std::memory_order_relaxed);
                 stat_latency.count.fetch_add(local_count, std::memory_order_relaxed);
