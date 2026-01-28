@@ -125,7 +125,7 @@ or
 
 Environment: Windows 10 | Intel Core i7-9700 @ 3.00GHz | 16GB RAM | MSVC AVX2. Threads pinned to physical cores via WinAPI.
 
-**1. Ultra-Low Latency Mode (Production-ready)
+**1. Ultra-Low Latency Mode (Production-ready)**
 
 Optimized for predictability and immediate event reaction. Throughput is balanced to prevent buffer buildup.
 
@@ -138,7 +138,7 @@ Optimized for predictability and immediate event reaction. Throughput is balance
 
 ![Server_stable](Docs/srv_stable.jpg)
 
-**2. Extreme Stress Test (Throughput Limit)
+**2. Extreme Stress Test (Throughput Limit)**
 
 In this mode, we push the lock-free ring buffer to its physical bandwidth limit.
 
