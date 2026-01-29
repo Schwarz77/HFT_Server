@@ -140,16 +140,7 @@ void Server::Start()
     m_monitor = std::thread(&Server::speed_monitor, this);
     m_producer = std::thread(&Server::producer, this);
 
-    //set_affinity(m_producer, 0);
-    //set_affinity(m_hot_dispatcher, 2);
-    //set_affinity(m_event_dispatcher, 4);
-    //set_affinity(m_monitor, 5);
-
-    //set_affinity(m_producer, 2);
-    //set_affinity(m_hot_dispatcher, 4);
-    //set_affinity(m_event_dispatcher, 6);
-    //set_affinity(m_monitor, 8);
-    
+   
     do_accept();
 
     if (m_show_log_msg)
