@@ -188,10 +188,24 @@ In this mode, we push the lock-free ring buffer to its physical bandwidth limit.
 
 # Examples of use
 
-![Server_stable_VR](Docs/srv_stable_VR.jpg)
+Ultra-Low Latency 
+![Server_stable](Docs/srv_stable_2.jpg)
+
+Ultra-Low Latency with rolling VWAP
+![Server_stable_VR](Docs/srv_stable_VR_2.jpg)
+
+Max Throughput
+![Server_max_throughput](Docs/srv_max_2.jpg)
+
+Binance data
 ![Server_binance](Docs/srv_binance.jpg)
+
+Client 
 ![Client](Docs/client1.jpg)
+
+Client with rolling VWAP
 ![Client_VWAP_roll](Docs/client2.jpg)
+
 
 
 ## Future Roadmap & R&D Directions
