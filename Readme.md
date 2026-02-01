@@ -10,27 +10,27 @@ The engine supports two distinct data sources tailored for different use cases:
 * Production Binance Stream: A direct connection to the Binance WebSocket API. It utilizes the ixwebsocket library for a robust, high-uptime connection and SIMDJson for ultra-fast parsing of incoming JSON packets, significantly minimizing CPU overhead.
 
 
-## Key Architectural Decisions
+## Key Architectural Decisions & Low-Latency Trade-offs
 
-1. Low-Latency Architecture: Implements custom lock-free Ring Buffers to pass data between threads without the overhead of mutexes.
+1. **Lock-Free Concurrency Model**: Utilizes a single-producer/single-consumer (SPSC) ring buffer architecture to eliminate mutex contention. Synchronization is managed via `std::atomic` with explicit `memory_order_acquire/release` semantics to minimize pipeline stalls.
 
-2. High-Throughput Processing:
+2. **Cache-Line Alignment & False Sharing Mitigation**: Critical data structures are aligned to 64-byte boundaries to prevent cache-line bouncing and L1/L2 thrashing during high-concurrency access.
 
-    Hot Dispatcher: Rapidly ingest and pre-process raw market events.
-    Zero-Copy Data Pipeline: to handle extreme throughput on consumer-grade hardware (like i7-9700), the system avoids the "Copy-Per-Subscriber" bottleneck.
-    Event Dispatcher: Filters trades based on USD volume thresholds and calculates real-time analytics.
+3. **In-place SIMD Parsing**: To eliminate the "Copy-Per-Message" bottleneck, the system utilizes `simdjson` for zero-copy parsing. Incoming WebSocket frames are processed directly in the ingestion buffer, reducing pressure on the Allocator and TLB.
 
-3. Advanced Analytics Engine: Calculates multiple versions of the Volume Weighted Average Price (VWAP):
+4. **Deterministic Hot Path**: The "Hot Dispatcher" is designed with a branch-predictor-friendly loop and pre-allocated metadata (CoinRegistry). This ensures that the Median (P50) latency remains under 350ns during standard production loads.
 
-    Session VWAP: Cumulative average since server start.
+5. **Throughput vs. Latency Profiling**:
+     - **Ultra-Low Latency Mode**: Configured for <1µs P99 latency. Ideal for immediate execution/reaction.
+     - **High-Throughput Mode**: Capable of saturating 10GbE+ links (200M EPS). Utilizes micro-batching and polling to maximize bandwidth at the cost of slight queuing delays (~2.5µs).
+	 
+6. **Analytics Engine**: Calculates multiple versions of the Volume Weighted Average Price (VWAP):
+     - Session VWAP: Cumulative average since server start.
+     - Rolling VWAP: Moving average over the last N trades.	 
 
-    Rolling VWAP: Moving average over the last N trades.
+7. **Fast Metadata Lookup**: Uses a custom CoinRegistry (a high-speed hash table with open addressing) to map ticker symbols to internal indices in O(1) time.
 
-4. Optimized Networking: Built on Boost.Asio with thread-safe "strands" to manage thousands of concurrent client sessions.
-
-5. Fast Metadata Lookup: Uses a custom CoinRegistry (a high-speed hash table with open addressing) to map ticker symbols to internal indices in O(1) time.
-
-6. Network Core: Powered by my personal **Client/Server boilerplate** based on Boost.Asio https://github.com/Schwarz77/AsyncTcpSignalServer
+8. **Network Core**: Powered by my personal **Client/Server boilerplate** based on Boost.Asio https://github.com/Schwarz77/AsyncTcpSignalServer
 
 
 ## System Architecture
@@ -188,10 +188,41 @@ In this mode, we push the lock-free ring buffer to its physical bandwidth limit.
 
 # Examples of use
 
-![Server_stable_VR](Docs/srv_stable_VR.jpg)
+Ultra-Low Latency 
+![Server_stable](Docs/srv_stable_2.jpg)
+
+Ultra-Low Latency with rolling VWAP
+![Server_stable_VR](Docs/srv_stable_VR_2.jpg)
+
+Max Throughput
+![Server_max_throughput](Docs/srv_max_2.jpg)
+
+Binance data
 ![Server_binance](Docs/srv_binance.jpg)
+
+Client 
 ![Client](Docs/client1.jpg)
+
+Client with rolling VWAP
 ![Client_VWAP_roll](Docs/client2.jpg)
+
+
+
+## Future Roadmap & R&D Directions
+
+To further push the boundaries of the engine, the following optimizations are planned:
+
+### 1. Kernel Bypass & Network Stack
+* **DPDK / Solarflare OpenOnload Integration:** Moving beyond the standard Linux networking stack to eliminate kernel-to-user space copy overhead and context switches.
+* **Migration to uWebSockets:** Replacing the current WebSocket implementation with `uWebSockets` to leverage its high-performance event loop and lower memory footprint.
+
+### 2. Data Feed & Serialization
+* **SBE (Simple Binary Encoding) Implementation:** Transitioning from JSON-based feeds to binary protocols for sub-microsecond serialization/deserialization.
+* **Shared Memory Backtesting Engine:** Implementing a high-speed historical data replayer utilizing POSIX Shared Memory for zero-latency communication between the emulator and the analytics core.
+
+### 3. Execution & Strategy Layer
+* **Order Management System (OMS):** Adding an execution gateway with support for FIX protocol and risk-management pre-trade checks.
+* **Lock-free Strategy Engine:** A dedicated thread-per-core strategy executor optimized for minimal cache pollution.
 
 
 ## License
